@@ -1,7 +1,14 @@
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
-const healthRoutes=require("./routes/health.routes");
+
+const healthRoutes = require("./routes/health.routes");
+
+const notFoundHandler = require("./middleware/notFound.middleware");
+
+const errorHandler = require("./middleware/error.middleware");
+
+const logger = require("./config/logger");
 
 
 const app = express();
@@ -20,15 +27,39 @@ app.use(
 
 app.use(cookieParser());
 
+app.use(logger);
+
 
 // Routes
 
-app.get("/", (req,res)=>{
-    res.status(200).json({
+app.get("/",(req,res)=>{
+
+    res.json({
         message:"LinkForge API running"
     });
+
 });
 
-app.use("/health", healthRoutes);
+// for testing
+app.get("/test-error",(req,res)=>{
+
+    throw new Error("Testing error");
+
+});
+
+
+app.use("/health",healthRoutes);
+
+
+// 404 Handler
+
+app.use(notFoundHandler);
+
+
+// Global Error Handler
+
+app.use(errorHandler);
+
+
 
 module.exports = app;
