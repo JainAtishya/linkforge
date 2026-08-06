@@ -16,6 +16,8 @@ const app = express();
 
 // Middlewares
 
+app.use(logger);
+
 app.use(express.json());
 
 app.use(
@@ -26,8 +28,6 @@ app.use(
 );
 
 app.use(cookieParser());
-
-app.use(logger);
 
 
 // Routes
