@@ -10,6 +10,8 @@ const errorHandler = require("./middleware/error.middleware");
 
 const logger = require("./config/logger");
 
+const authRoutes = require("./routes/auth.routes");
+
 
 const app = express();
 
@@ -31,6 +33,11 @@ app.use(cookieParser());
 
 
 // Routes
+
+app.use(
+    "/api/v1/auth",
+    authRoutes
+);
 
 app.get("/",(req,res)=>{
 
