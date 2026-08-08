@@ -1,30 +1,130 @@
-const { registerUser } = require("../services/auth.service");
+const {
+    register,
+    login
+} = require("../services/auth.service");
 
-const asyncHandler = require("../utils/asyncHandler");
+const asyncHandler =
+    require("../utils/asyncHandler");
 
-const register = asyncHandler(async (req, res) => {
-    
-  const { name, email, password } = req.validatedData;
+const ApiResponse =
+    require("../utils/ApiResponse");
 
-  const user = await registerUser({
-    name,
-    email,
-    password,
-  });
+const {
+    toUserResponse
+} = require("../mappers/user.mapper");
 
-  res.status(201).json({
-    success: true,
+const {
+    setAuthCookies
+} = require("../utils/cookies");
 
-    message: "User registered successfully",
+const {
+    StatusCodes
+} = require("http-status-codes");
 
-    user: {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-    },
-  });
-});
+const registerUser = asyncHandler(
+    async (req, res) => {
+
+        const {
+            name,
+            email,
+            password
+        } = req.validatedData;
+
+        const result = await register({
+            name,
+            email,
+            password,
+
+            deviceInfo: {
+                browser: req.headers["sec-ch-ua"],
+                os: req.headers["sec-ch-ua-platform"]
+            },
+
+            ipAddress:
+                req.ip,
+
+            userAgent:
+                req.headers["user-agent"]
+        });
+
+        setAuthCookies(
+            res,
+            result.accessToken,
+            result.refreshToken
+        );
+
+        return res
+            .status(StatusCodes.CREATED)
+            .json(
+                new ApiResponse(
+                    StatusCodes.CREATED,
+
+                    {
+                        user:
+                            toUserResponse(
+                                result.user
+                            )
+                    },
+
+                    "User registered successfully"
+                )
+            );
+    }
+);
+
+
+const loginUser = asyncHandler(
+    async (req, res) => {
+
+        const {
+            email,
+            password
+        } = req.validatedData;
+
+        const result = await login({
+            email,
+            password,
+
+            deviceInfo: {
+                browser:
+                    req.headers["sec-ch-ua"],
+
+                os:
+                    req.headers["sec-ch-ua-platform"]
+            },
+
+            ipAddress:
+                req.ip,
+
+            userAgent:
+                req.headers["user-agent"]
+        });
+
+        setAuthCookies(
+            res,
+            result.accessToken,
+            result.refreshToken
+        );
+
+        return res
+            .status(StatusCodes.OK)
+            .json(
+                new ApiResponse(
+                    StatusCodes.OK,
+                    {
+                        user:
+                            toUserResponse(
+                                result.user
+                            )
+                    },
+                    "Login successful"
+                )
+            );
+    }
+);
+
 
 module.exports = {
-  registerUser: register,
+    registerUser,
+    loginUser
 };
