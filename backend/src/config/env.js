@@ -24,4 +24,6 @@ module.exports = {
 
     GOOGLE_REDIRECT_URI:
         process.env.GOOGLE_REDIRECT_URI,
+
+    APP_BASE_URL: process.env.APP_BASE_URL,
 };

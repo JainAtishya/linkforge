@@ -12,6 +12,9 @@ const logger = require("./config/logger");
 
 const authRoutes = require("./routes/auth.routes");
 
+const urlRoutes =
+    require("./routes/url.routes");
+
 const app = express();
 
 
@@ -36,6 +39,11 @@ app.use(cookieParser());
 app.use(
     "/api/v1/auth",
     authRoutes
+);
+
+app.use(
+    "/api/v1/urls",
+    urlRoutes
 );
 
 app.get("/",(req,res)=>{
