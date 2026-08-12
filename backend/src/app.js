@@ -12,7 +12,6 @@ const logger = require("./config/logger");
 
 const authRoutes = require("./routes/auth.routes");
 
-
 const app = express();
 
 

@@ -1,6 +1,9 @@
 const {
     register,
-    login
+    login,
+    refresh,
+    logout,
+    logoutAll
 } = require("../services/auth.service");
 
 const asyncHandler =
@@ -20,6 +23,14 @@ const {
 const {
     StatusCodes
 } = require("http-status-codes");
+
+const ApiError =
+    require("../utils/ApiError");
+
+const {
+    REFRESH_TOKEN_COOKIE,
+    clearAuthCookies
+} = require("../utils/cookies");
 
 const registerUser = asyncHandler(
     async (req, res) => {
@@ -124,7 +135,101 @@ const loginUser = asyncHandler(
 );
 
 
+const refreshAccessToken = asyncHandler(
+    async (req, res) => {
+
+        const refreshToken =
+            req.cookies?.refreshToken;
+
+        if (!refreshToken) {
+
+            throw new ApiError(
+                StatusCodes.UNAUTHORIZED,
+                "Refresh token required"
+            );
+        }
+
+        const result =
+            await refresh(
+                refreshToken
+            );
+
+        setAuthCookies(
+            res,
+            result.accessToken,
+            result.refreshToken
+        );
+
+        return res
+            .status(StatusCodes.OK)
+            .json(
+                new ApiResponse(
+                    StatusCodes.OK,
+                    {
+                        user:
+                            toUserResponse(
+                                result.user
+                            )
+                    },
+                    "Token refreshed successfully"
+                )
+            );
+    }
+);
+
+
+const logoutUser = asyncHandler(
+    async (req, res) => {
+
+        const refreshToken =
+            req.cookies?.[
+                REFRESH_TOKEN_COOKIE
+            ];
+
+        await logout(refreshToken);
+
+        clearAuthCookies(res);
+
+        return res
+            .status(StatusCodes.OK)
+            .json(
+                new ApiResponse(
+                    StatusCodes.OK,
+                    null,
+                    "Logged out successfully"
+                )
+            );
+    }
+);
+
+
+const logoutAllUsers = asyncHandler(
+    async (req, res) => {
+
+        const userId =
+            req.user.sub;
+
+        await logoutAll(userId);
+
+        clearAuthCookies(res);
+
+        return res
+            .status(StatusCodes.OK)
+            .json(
+                new ApiResponse(
+                    StatusCodes.OK,
+                    null,
+                    "Logged out from all devices"
+                )
+            );
+    }
+);
+
+
 module.exports = {
     registerUser,
-    loginUser
+    loginUser,
+    refreshAccessToken,
+    logoutUser,
+    logoutAllUsers
 };

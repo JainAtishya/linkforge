@@ -1,66 +1,61 @@
 const mongoose = require("mongoose");
 
+const { SESSION_STATUS } = require("../constants/session.constants");
 
 const sessionSchema = new mongoose.Schema(
-{
-    userId:{
-        type:mongoose.Schema.Types.ObjectId,
-        ref:"User",
-        required:true
+  {
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
     },
 
-
-    refreshTokenHash:{
-        type:String,
-        required:true
+    refreshTokenHash: {
+      type: String,
+      required: true,
     },
 
-
-    deviceInfo:{
-        browser:String,
-        os:String
+    status: {
+      type: String,
+      enum: Object.values(SESSION_STATUS),
+      default: SESSION_STATUS.ACTIVE,
+      required: true,
     },
 
-
-    ipAddress:{
-        type:String
+    deviceInfo: {
+      browser: String,
+      os: String,
     },
 
-
-    userAgent:{
-        type:String
+    ipAddress: {
+      type: String,
     },
 
-
-    expiresAt:{
-        type:Date,
-        required:true
+    userAgent: {
+      type: String,
     },
 
+    expiresAt: {
+      type: Date,
+      required: true,
+    },
 
-    lastUsedAt:{
-        type:Date,
-        default:Date.now
-    }
-
-},
-{
-    timestamps:true
-}
+    lastUsedAt: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  {
+    timestamps: true,
+  },
 );
 
-
 sessionSchema.index({
-    userId:1
+  userId: 1,
 });
 
-
 sessionSchema.index({
-    refreshTokenHash:1
+  refreshTokenHash: 1,
 });
 
-
-module.exports = mongoose.model(
-    "Session",
-    sessionSchema
-);
+module.exports = mongoose.model("Session", sessionSchema);

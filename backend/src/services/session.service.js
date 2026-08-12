@@ -1,57 +1,140 @@
+const mongoose = require("mongoose");
+
 const Session = require("../models/session.model");
 
-const {
-    hashToken
-} = require("../utils/crypto");
+const { hashToken } = require("../utils/crypto");
 
 const {
-    SESSION_STATUS
+  SESSION_STATUS,
+  SESSION_ERRORS,
 } = require("../constants/session.constants");
 
 const createSession = async ({
-    sessionId,
-    userId,
-    refreshToken,
-    deviceInfo,
-    ipAddress,
-    userAgent,
-    expiresAt,
-    dbSession
+  sessionId,
+  userId,
+  refreshToken,
+  deviceInfo,
+  ipAddress,
+  userAgent,
+  expiresAt,
+  dbSession,
 }) => {
+  const refreshTokenHash = hashToken(refreshToken);
 
-    const refreshTokenHash =
-        hashToken(refreshToken);
+  const session = await Session.create(
+    [
+      {
+        _id: sessionId,
+        userId,
+        refreshTokenHash,
+        deviceInfo,
+        ipAddress,
+        userAgent,
+        status: SESSION_STATUS.ACTIVE,
+        expiresAt,
+        lastUsedAt: new Date(),
+      },
+    ],
+    {
+      session: dbSession,
+    },
+  );
 
-    const session = await Session.create(
-        [
-            {
-                _id: sessionId,
+  return session[0];
+};
 
-                userId,
+const rotateRefreshToken = async ({
+  sessionId,
+  userId,
+  oldRefreshTokenHash,
+  newRefreshTokenHash,
+}) => {
+  const dbSession = await mongoose.startSession();
 
-                refreshTokenHash,
+  try {
+    let updatedSession;
 
-                deviceInfo,
+    await dbSession.withTransaction(async () => {
+      const session = await Session.findOne({
+        _id: sessionId,
+        userId,
+        status: SESSION_STATUS.ACTIVE,
+      }).session(dbSession);
 
-                ipAddress,
+      if (!session) {
+        throw new Error(SESSION_ERRORS.NOT_FOUND);
+      }
 
-                userAgent,
+      if (session.expiresAt <= new Date()) {
+        throw new Error(SESSION_ERRORS.EXPIRED);
+      }
 
-                status: SESSION_STATUS.ACTIVE,
+      /*
+       * The refresh token presented by the
+       * client must be the exact token currently
+       * associated with this session.
+       */
 
-                expiresAt,
+      if (session.refreshTokenHash !== oldRefreshTokenHash) {
+        throw new Error(SESSION_ERRORS.REFRESH_TOKEN_REUSE);
+      }
 
-                lastUsedAt: new Date()
-            }
-        ],
+      /*
+       * Rotate the token.
+       */
+
+      session.refreshTokenHash = newRefreshTokenHash;
+
+      session.lastUsedAt = new Date();
+
+      await session.save({
+        session: dbSession,
+      });
+
+      updatedSession = session;
+    });
+
+    return updatedSession;
+  } finally {
+    await dbSession.endSession();
+  }
+};
+
+const revokeSession = async (sessionId) => {
+    return Session.findOneAndUpdate(
         {
-            session: dbSession
+            _id: sessionId,
+            status: SESSION_STATUS.ACTIVE
+        },
+        {
+            $set: {
+                status: SESSION_STATUS.REVOKED
+            }
+        },
+        {
+            new: true
         }
     );
+};
 
-    return session[0];
+
+const revokeAllUserSessions = async (userId) => {
+    return Session.updateMany(
+        {
+            userId,
+            status: SESSION_STATUS.ACTIVE
+        },
+        {
+            $set: {
+                status: SESSION_STATUS.REVOKED
+            }
+        }
+    );
 };
 
 module.exports = {
-    createSession
-};
+    createSession,
+    rotateRefreshToken,
+    revokeSession,
+    revokeAllUserSessions
+};  

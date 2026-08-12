@@ -55,8 +55,36 @@ const setAuthCookies = (
     );
 };
 
+const clearAuthCookies = (res) => {
+
+    res.clearCookie(
+        ACCESS_TOKEN_COOKIE,
+        {
+            httpOnly: true,
+            secure: isProduction,
+            sameSite: isProduction
+                ? "none"
+                : "lax",
+            path: "/"
+        }
+    );
+
+    res.clearCookie(
+        REFRESH_TOKEN_COOKIE,
+        {
+            httpOnly: true,
+            secure: isProduction,
+            sameSite: isProduction
+                ? "none"
+                : "lax",
+            path: "/"
+        }
+    );
+};
+
 module.exports = {
     setAuthCookies,
+    clearAuthCookies,
     ACCESS_TOKEN_COOKIE,
     REFRESH_TOKEN_COOKIE
 };

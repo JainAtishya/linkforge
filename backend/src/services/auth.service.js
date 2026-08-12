@@ -5,17 +5,32 @@ const User = require("../models/user.model");
 const { hashPassword, comparePassword } = require("../utils/crypto");
 
 const {
+    SESSION_ERRORS
+} = require("../constants/session.constants");
+
+const {
+  verifyRefreshToken,
   generateAccessToken,
   generateRefreshToken,
 } = require("./token.service");
 
-const { createSession } = require("./session.service");
+const {
+    createSession,
+    rotateRefreshToken,
+    revokeSession,
+    revokeAllUserSessions
+} = require("./session.service");
 
 const ApiError = require("../utils/ApiError");
 
 const { StatusCodes } = require("http-status-codes");
 
 const { getRefreshTokenExpiryDate } = require("../utils/date");
+
+const {
+    hashToken
+} = require("../utils/crypto");
+
 
 const register = async ({
   name,
@@ -162,7 +177,187 @@ const login = async ({ email, password, deviceInfo, ipAddress, userAgent }) => {
   }
 };
 
+const refresh = async (
+    refreshToken
+) => {
+
+    let payload;
+
+    /*
+     * 1. Verify JWT signature and expiration.
+     */
+
+    try {
+
+        payload =
+            verifyRefreshToken(
+                refreshToken
+            );
+        
+
+    } catch (error) {
+
+        throw new ApiError(
+            StatusCodes.UNAUTHORIZED,
+            "Invalid or expired refresh token"
+        );
+    }
+
+
+    /*
+     * 2. Validate required claims.
+     */
+
+    if (
+        !payload.sub ||
+        !payload.sid
+    ) {
+
+        throw new ApiError(
+            StatusCodes.UNAUTHORIZED,
+            "Invalid refresh token"
+        );
+    }
+
+
+    /*
+     * 3. Find the user.
+     */
+
+    const user =
+        await User.findById(
+            payload.sub
+        );
+
+    if (!user) {
+
+        throw new ApiError(
+            StatusCodes.UNAUTHORIZED,
+            "Invalid refresh token"
+        );
+    }
+
+
+    /*
+     * 4. Generate replacement tokens.
+     *
+     * IMPORTANT:
+     * Same session ID.
+     */
+
+    const newAccessToken =
+        generateAccessToken(user);
+
+    const newRefreshToken =
+        generateRefreshToken(
+            user,
+            payload.sid
+        );
+
+
+    /*
+     * 5. Hash old + new refresh tokens.
+     */
+
+    const oldRefreshTokenHash =
+        hashToken(refreshToken);
+
+    const newRefreshTokenHash =
+        hashToken(newRefreshToken);
+
+
+    /*
+     * 6. Atomically rotate the token.
+     */
+
+    try {
+
+        await rotateRefreshToken({
+            sessionId: payload.sid,
+            userId: payload.sub,
+            oldRefreshTokenHash,
+            newRefreshTokenHash
+        });
+
+    } catch (error) {
+
+        if (
+            error.message ===
+            SESSION_ERRORS.REFRESH_TOKEN_REUSE
+        ) {
+
+            await revokeSession(
+                payload.sid
+            );
+
+            throw new ApiError(
+                StatusCodes.UNAUTHORIZED,
+                "Refresh token reuse detected"
+            );
+        }
+
+        if (
+            error.message ===
+            SESSION_ERRORS.EXPIRED
+        ) {
+
+            throw new ApiError(
+                StatusCodes.UNAUTHORIZED,
+                "Session expired"
+            );
+        }
+
+        throw new ApiError(
+            StatusCodes.UNAUTHORIZED,
+            "Invalid refresh session"
+        );
+    }
+
+
+    return {
+        user,
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken
+    };
+};
+
+const logout = async (refreshToken) => {
+
+    if (!refreshToken) {
+        return;
+    }
+
+    let payload;
+
+    try {
+        payload =
+            verifyRefreshToken(refreshToken);
+    } catch (error) {
+        /*
+         * Even if the refresh token is already
+         * expired/invalid, logout should still
+         * clear the client's cookies.
+         */
+        return;
+    }
+
+    if (!payload.sid) {
+        return;
+    }
+
+    await revokeSession(payload.sid);
+};
+
+
+const logoutAll = async (userId) => {
+
+    await revokeAllUserSessions(userId);
+};
+
 module.exports = {
-  register,
-  login,
+    register,
+    login,
+    refresh,
+    logout,
+    logoutAll
 };
