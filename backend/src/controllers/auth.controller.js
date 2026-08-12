@@ -32,6 +32,21 @@ const {
     clearAuthCookies
 } = require("../utils/cookies");
 
+const {
+    generateGoogleAuthUrl
+} = require("../services/google.service");
+
+const {
+    generateOAuthState,
+    setOAuthStateCookie,
+    OAUTH_STATE_COOKIE,
+    clearOAuthStateCookie
+} = require("../utils/oauth");
+
+const {
+    googleLogin
+} = require("../services/auth.service");
+
 const registerUser = asyncHandler(
     async (req, res) => {
 
@@ -225,11 +240,118 @@ const logoutAllUsers = asyncHandler(
     }
 );
 
+const googleAuth = asyncHandler(
+    async (req, res) => {
+
+        const state =
+            generateOAuthState();
+
+        setOAuthStateCookie(
+            res,
+            state
+        );
+
+        const authUrl =
+            generateGoogleAuthUrl(state);
+
+        return res.redirect(authUrl);
+    }
+);
+
+const googleCallback = asyncHandler(
+    async (req, res) => {
+
+        const {
+            code,
+            state
+        } = req.query;
+
+        const storedState =
+            req.cookies?.[
+                OAUTH_STATE_COOKIE
+            ];
+
+        /*
+         * Validate OAuth state.
+         */
+
+        if (
+            !state ||
+            !storedState ||
+            state !== storedState
+        ) {
+
+            clearOAuthStateCookie(res);
+
+            throw new ApiError(
+                StatusCodes.UNAUTHORIZED,
+                "Invalid OAuth state"
+            );
+        }
+
+
+        if (!code) {
+
+            clearOAuthStateCookie(res);
+
+            throw new ApiError(
+                StatusCodes.BAD_REQUEST,
+                "Authorization code missing"
+            );
+        }
+
+
+        /*
+         * Exchange code + perform Google
+         * identity/account-linking logic.
+         */
+
+        const result =
+            await googleLogin(code);
+
+
+        /*
+         * Clear temporary OAuth state.
+         */
+
+        clearOAuthStateCookie(res);
+
+
+        /*
+         * Issue OUR authentication cookies.
+         */
+
+        setAuthCookies(
+            res,
+            result.accessToken,
+            result.refreshToken
+        );
+
+
+        return res
+            .status(StatusCodes.OK)
+            .json(
+                new ApiResponse(
+                    StatusCodes.OK,
+                    {
+                        user:
+                            toUserResponse(
+                                result.user
+                            )
+                    },
+                    "Google authentication successful"
+                )
+            );
+    }
+);
+
 
 module.exports = {
     registerUser,
     loginUser,
     refreshAccessToken,
     logoutUser,
-    logoutAllUsers
+    logoutAllUsers,
+    googleAuth,
+    googleCallback
 };

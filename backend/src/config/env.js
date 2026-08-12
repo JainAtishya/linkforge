@@ -15,5 +15,13 @@ module.exports = {
         process.env.ACCESS_TOKEN_EXPIRY || "15m",
 
     REFRESH_TOKEN_EXPIRY:
-        process.env.REFRESH_TOKEN_EXPIRY || "30d"
+        process.env.REFRESH_TOKEN_EXPIRY || "30d",
+
+    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+
+    GOOGLE_CLIENT_SECRET:
+        process.env.GOOGLE_CLIENT_SECRET,
+
+    GOOGLE_REDIRECT_URI:
+        process.env.GOOGLE_REDIRECT_URI,
 };

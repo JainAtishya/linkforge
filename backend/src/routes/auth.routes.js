@@ -5,7 +5,9 @@ const {
     loginUser,
     refreshAccessToken,
     logoutUser,
-    logoutAllUsers
+    logoutAllUsers,
+    googleAuth,
+    googleCallback
 } = require("../controllers/auth.controller");
 
 const validate =
@@ -62,5 +64,16 @@ router.post(
     authenticate,
     logoutAllUsers
 );
+
+router.get(
+    "/google",
+    googleAuth
+);
+
+router.get(
+    "/google/callback",
+    googleCallback
+);
+
 
 module.exports = router;
