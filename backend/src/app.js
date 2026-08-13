@@ -12,6 +12,9 @@ const logger = require("./config/logger");
 
 const authRoutes = require("./routes/auth.routes");
 
+const redirectRoutes =
+    require("./routes/redirect.routes");
+
 const urlRoutes =
     require("./routes/url.routes");
 
@@ -35,6 +38,11 @@ app.use(cookieParser());
 
 
 // Routes
+
+app.use(
+    "/",
+    redirectRoutes
+);
 
 app.use(
     "/api/v1/auth",

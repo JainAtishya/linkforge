@@ -9,7 +9,8 @@ const ApiResponse =
     require("../utils/ApiResponse");
 
 const {
-    createShortUrl
+    createShortUrl,
+    getOriginalUrl
 } = require("../services/url.service");
 
 const createUrl = asyncHandler(
@@ -49,6 +50,22 @@ const createUrl = asyncHandler(
     }
 );
 
+const redirectToOriginalUrl = asyncHandler(
+    async (req, res) => {
+
+        const { shortCode } = req.params;
+
+        const originalUrl =
+            await getOriginalUrl(shortCode);
+
+        return res.redirect(
+            302,
+            originalUrl
+        );
+    }
+);
+
 module.exports = {
-    createUrl
+    createUrl,
+    redirectToOriginalUrl
 };
