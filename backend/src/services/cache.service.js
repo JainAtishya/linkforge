@@ -45,9 +45,21 @@ const deleteCachedUrl = async (shortCode) => {
     await redisClient.del(key);
 };
 
+const invalidateUrlCache = async (shortCode) => {
+
+    if (!redisClient.isReady) {
+        return;
+    }
+
+    const key = `shorturl:${shortCode}`;
+
+    await redisClient.del(key);
+};
+
 module.exports = {
     getCachedUrl,
     cacheUrl,
     deleteCachedUrl,
-    DEFAULT_CACHE_TTL
+    DEFAULT_CACHE_TTL,
+    invalidateUrlCache
 };

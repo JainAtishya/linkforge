@@ -8,9 +8,16 @@ const {
 const ApiResponse =
     require("../utils/ApiResponse");
 
+const ApiError =
+    require("../utils/ApiError");
+
 const {
     createShortUrl,
-    getOriginalUrl
+    getOriginalUrl,
+    getUserUrls,
+    getUrlById,
+    updateUrl,
+    deleteUrl
 } = require("../services/url.service");
 
 const createUrl = asyncHandler(
@@ -65,7 +72,134 @@ const redirectToOriginalUrl = asyncHandler(
     }
 );
 
+const getMyUrls = asyncHandler(async (req, res) => {
+    const page = Math.max(
+        parseInt(req.query.page) || 1,
+        1
+    );
+
+    const limit = Math.min(
+        Math.max(
+            parseInt(req.query.limit) || 10,
+            1
+        ),
+        100
+    );
+
+    const result = await getUserUrls(
+        req.user.sub,
+        page,
+        limit
+    );
+
+    return res.status(StatusCodes.OK).json(
+        new ApiResponse(
+            StatusCodes.OK,
+            result,
+            "URLs fetched successfully"
+        )
+    );
+});
+
+const getUrl = asyncHandler(async (req, res) => {
+
+    const { id } = req.params;
+
+    const shortUrl = await getUrlById(
+        id,
+        req.user.sub
+    );
+
+    return res.status(StatusCodes.OK).json(
+        new ApiResponse(
+            StatusCodes.OK,
+            {
+                id: shortUrl._id,
+                originalUrl: shortUrl.originalUrl,
+                shortCode: shortUrl.shortCode,
+                shortUrl:
+                    `${process.env.APP_BASE_URL}/${shortUrl.shortCode}`,
+                isActive: shortUrl.isActive,
+                expiresAt: shortUrl.expiresAt,
+                createdAt: shortUrl.createdAt,
+                updatedAt: shortUrl.updatedAt
+            },
+            "URL fetched successfully"
+        )
+    );
+});
+
+const updateMyUrl = asyncHandler(async (req, res) => {
+
+    const { id } = req.params;
+
+    const {
+        originalUrl,
+        expiresAt
+    } = req.body;
+
+    if (
+        originalUrl === undefined &&
+        expiresAt === undefined
+    ) {
+        throw new ApiError(
+            StatusCodes.BAD_REQUEST,
+            "At least one field is required"
+        );
+    }
+
+    const shortUrl = await updateUrl(
+        id,
+        req.user.sub,
+        {
+            originalUrl,
+            expiresAt
+        }
+    );
+
+    return res.status(StatusCodes.OK).json(
+        new ApiResponse(
+            StatusCodes.OK,
+            {
+                id: shortUrl._id,
+                originalUrl: shortUrl.originalUrl,
+                shortCode: shortUrl.shortCode,
+                shortUrl:
+                    `${process.env.APP_BASE_URL}/${shortUrl.shortCode}`,
+                isActive: shortUrl.isActive,
+                expiresAt: shortUrl.expiresAt,
+                createdAt: shortUrl.createdAt,
+                updatedAt: shortUrl.updatedAt
+            },
+            "URL updated successfully"
+        )
+    );
+});
+
+
+const deleteMyUrl = asyncHandler(async (req, res) => {
+
+    const { id } = req.params;
+
+    await deleteUrl(
+        id,
+        req.user.sub
+    );
+
+    return res.status(StatusCodes.OK).json(
+        new ApiResponse(
+            StatusCodes.OK,
+            null,
+            "Short URL deleted successfully"
+        )
+    );
+});
+
 module.exports = {
     createUrl,
-    redirectToOriginalUrl
+    redirectToOriginalUrl,
+    getMyUrls,
+    getUrl,
+    updateMyUrl,
+    deleteMyUrl
 };
