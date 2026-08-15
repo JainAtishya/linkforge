@@ -2,17 +2,42 @@ const app = require("./app");
 
 const connectDB = require("./config/db");
 
-const {PORT}=require("./config/env");
+const { PORT } = require("./config/env");
+
+const {
+    connectProducer
+} = require("./services/kafka.service");
 
 const {
     connectRedis
 } = require("./config/redis");
 
 const startServer = async () => {
-    try {
-        await connectDB();
-        await connectRedis();
 
+    try {
+
+        // MongoDB is required
+        await connectDB();
+
+        // Redis is optional
+        connectRedis()
+            .catch(error => {
+                console.error(
+                    "Redis startup failed:",
+                    error.message
+                );
+            });
+
+        // Kafka is optional
+        connectProducer()
+            .catch(error => {
+                console.error(
+                    "Kafka startup failed:",
+                    error.message
+                );
+            });
+
+        // Start API immediately
         app.listen(PORT, () => {
             console.log(
                 `Server running on port ${PORT}`
@@ -20,7 +45,12 @@ const startServer = async () => {
         });
 
     } catch (error) {
-        console.error(error);
+
+        console.error(
+            "Failed to start server:",
+            error
+        );
+
         process.exit(1);
     }
 };

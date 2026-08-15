@@ -4,6 +4,7 @@ const {
 
 const DEFAULT_CACHE_TTL = 60 * 60; // 1 hour
 
+
 const getCachedUrl = async (shortCode) => {
 
     if (!redisClient.isReady) {
@@ -12,11 +13,34 @@ const getCachedUrl = async (shortCode) => {
 
     const key = `shorturl:${shortCode}`;
 
-    return await redisClient.get(key);
+    const cached = await redisClient.get(key);
+
+    if (!cached) {
+        return null;
+    }
+
+    try {
+
+        return JSON.parse(cached);
+
+    } catch (error) {
+
+        /*
+         * Old cache entry from the previous format.
+         * Remove it so MongoDB can repopulate
+         * the cache using the new format.
+         */
+
+        await redisClient.del(key);
+
+        return null;
+    }
 };
+
 
 const cacheUrl = async (
     shortCode,
+    urlId,
     originalUrl,
     ttl = DEFAULT_CACHE_TTL
 ) => {
@@ -27,12 +51,18 @@ const cacheUrl = async (
 
     const key = `shorturl:${shortCode}`;
 
+    const value = JSON.stringify({
+        urlId: urlId.toString(),
+        originalUrl
+    });
+
     await redisClient.setEx(
         key,
         ttl,
-        originalUrl
+        value
     );
 };
+
 
 const deleteCachedUrl = async (shortCode) => {
 
@@ -45,6 +75,7 @@ const deleteCachedUrl = async (shortCode) => {
     await redisClient.del(key);
 };
 
+
 const invalidateUrlCache = async (shortCode) => {
 
     if (!redisClient.isReady) {
@@ -55,6 +86,7 @@ const invalidateUrlCache = async (shortCode) => {
 
     await redisClient.del(key);
 };
+
 
 module.exports = {
     getCachedUrl,
