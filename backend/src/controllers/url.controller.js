@@ -1,5 +1,10 @@
 const asyncHandler = require("../utils/asyncHandler");
 
+const {
+    getDevice,
+    getBrowser
+} = require("../utils/userAgent");
+
 const { StatusCodes } = require("http-status-codes");
 
 const ApiResponse = require("../utils/ApiResponse");
@@ -16,6 +21,11 @@ const {
   updateUrl,
   deleteUrl,
 } = require("../services/url.service");
+
+const {
+    getUrlAnalytics,
+    getUrlAnalyticsByDate
+} = require("../services/analytics.service");
 
 const createUrl = asyncHandler(async (req, res) => {
   const { originalUrl, expiresAt } = req.body;
@@ -44,24 +54,65 @@ const createUrl = asyncHandler(async (req, res) => {
 const redirectToOriginalUrl = asyncHandler(
     async (req, res) => {
 
-        const { shortCode } = req.params;
+        const {
+            shortCode
+        } = req.params;
+
 
         const {
             urlId,
             originalUrl
-        } = await getOriginalUrl(shortCode);
+        } = await getOriginalUrl(
+            shortCode
+        );
 
 
         /*
-         * Analytics event.
+         * Extract request metadata.
+         */
+
+        const userAgent =
+            req.get("user-agent") || "";
+
+
+        const ipAddress =
+            req.ip;
+
+
+        const referrer =
+            req.get("referer") || null;
+
+
+        const device =
+            getDevice(userAgent);
+
+
+        const browser =
+            getBrowser(userAgent);
+
+
+        /*
+         * Publish analytics event.
          *
          * Kafka failure must NOT
          * break the redirect.
          */
 
         await publishUrlClicked({
+
             urlId,
-            shortCode
+
+            shortCode,
+
+            ipAddress,
+
+            userAgent,
+
+            referrer,
+
+            device,
+
+            browser
         });
 
 
@@ -158,6 +209,66 @@ const deleteMyUrl = asyncHandler(async (req, res) => {
     );
 });
 
+const getAnalytics = asyncHandler(
+    async (req, res) => {
+
+        const { id } = req.params;
+
+        const {
+            period = "7d"
+        } = req.query;
+
+        const analytics =
+            await getUrlAnalytics(
+                id,
+                req.user.sub,
+                period
+            );
+
+        return res
+            .status(StatusCodes.OK)
+            .json(
+                new ApiResponse(
+                    StatusCodes.OK,
+                    analytics,
+                    "Analytics fetched successfully"
+                )
+            );
+    }
+);
+
+const getAnalyticsByDate = asyncHandler(
+    async (req, res) => {
+
+        const {
+            id
+        } = req.params;
+
+        const {
+            date
+        } = req.query;
+
+
+        const analytics =
+            await getUrlAnalyticsByDate(
+                id,
+                req.user.sub,
+                date
+            );
+
+
+        return res
+            .status(StatusCodes.OK)
+            .json(
+                new ApiResponse(
+                    StatusCodes.OK,
+                    analytics,
+                    "Date analytics fetched successfully"
+                )
+            );
+    }
+);
+
 module.exports = {
   createUrl,
   redirectToOriginalUrl,
@@ -165,4 +276,6 @@ module.exports = {
   getUrl,
   updateMyUrl,
   deleteMyUrl,
+  getAnalytics,
+  getAnalyticsByDate
 };

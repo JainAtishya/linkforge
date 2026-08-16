@@ -11,7 +11,9 @@ const {
     getMyUrls,
     getUrl,
     updateMyUrl,
-    deleteMyUrl
+    deleteMyUrl,
+    getAnalytics,
+    getAnalyticsByDate
 } = require("../controllers/url.controller");
 
 router.post(
@@ -24,6 +26,18 @@ router.get(
     "/",
     authenticate,
     getMyUrls
+);
+
+router.get(
+    "/:id/analytics/date",
+    authenticate,
+    getAnalyticsByDate
+);
+
+router.get(
+    "/:id/analytics",
+    authenticate,
+    getAnalytics
 );
 
 router.get(

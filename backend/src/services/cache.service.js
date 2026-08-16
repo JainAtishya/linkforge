@@ -13,7 +13,8 @@ const getCachedUrl = async (shortCode) => {
 
     const key = `shorturl:${shortCode}`;
 
-    const cached = await redisClient.get(key);
+    const cached =
+        await redisClient.get(key);
 
     if (!cached) {
         return null;
@@ -49,12 +50,14 @@ const cacheUrl = async (
         return;
     }
 
-    const key = `shorturl:${shortCode}`;
+    const key =
+        `shorturl:${shortCode}`;
 
-    const value = JSON.stringify({
-        urlId: urlId.toString(),
-        originalUrl
-    });
+    const value =
+        JSON.stringify({
+            urlId: urlId.toString(),
+            originalUrl
+        });
 
     await redisClient.setEx(
         key,
@@ -70,7 +73,8 @@ const deleteCachedUrl = async (shortCode) => {
         return;
     }
 
-    const key = `shorturl:${shortCode}`;
+    const key =
+        `shorturl:${shortCode}`;
 
     await redisClient.del(key);
 };
@@ -82,7 +86,8 @@ const invalidateUrlCache = async (shortCode) => {
         return;
     }
 
-    const key = `shorturl:${shortCode}`;
+    const key =
+        `shorturl:${shortCode}`;
 
     await redisClient.del(key);
 };

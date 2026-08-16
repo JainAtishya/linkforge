@@ -207,7 +207,7 @@ const getOriginalUrl = async (shortCode) => {
 
     /*
      * 7. Return everything
-     * needed by the redirect + analytics.
+     * needed by redirect + analytics.
      */
 
     return {
