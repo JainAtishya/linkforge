@@ -2,85 +2,189 @@ const ShortUrl = require("../models/shortUrl.model");
 
 const { generateShortCode } = require("../utils/shortCode");
 
-const { validateUrl } = require("../validators/url.validator");
+const {
+    validateUrl,
+    validateCustomAlias
+} = require("../validators/url.validator");
 
 const ApiError = require("../utils/ApiError");
 
-const { StatusCodes } = require("http-status-codes");
+const {
+    StatusCodes
+} = require("http-status-codes");
 
 const {
-  getCachedUrl,
-  cacheUrl,
-  DEFAULT_CACHE_TTL,
-  invalidateUrlCache,
+    getCachedUrl,
+    cacheUrl,
+    DEFAULT_CACHE_TTL,
+    invalidateUrlCache,
 } = require("./cache.service");
 
-const createShortUrl = async ({ userId, originalUrl, expiresAt }) => {
-  /*
-   * Validate URL
-   */
 
-  if (!validateUrl(originalUrl)) {
-    throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid URL");
-  }
+const createShortUrl = async ({
+    userId,
+    originalUrl,
+    expiresAt,
+    customAlias
+}) => {
 
-  /*
-   * Validate expiration if provided
-   */
+    /*
+     * Validate URL
+     */
 
-  if (expiresAt) {
-    const expiry = new Date(expiresAt);
+    if (!validateUrl(originalUrl)) {
 
-    if (Number.isNaN(expiry.getTime()) || expiry <= new Date()) {
-      throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid expiration date");
+        throw new ApiError(
+            StatusCodes.BAD_REQUEST,
+            "Invalid URL"
+        );
     }
 
-    expiresAt = expiry;
-  }
 
-  /*
-   * Generate + insert.
-   *
-   * MongoDB's unique index protects us
-   * against concurrent collisions.
-   */
+    /*
+     * Validate expiration if provided
+     */
 
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const shortCode = generateShortCode();
+    if (expiresAt) {
 
-    try {
-      const shortUrl = await ShortUrl.create({
-        userId,
-        originalUrl,
-        shortCode,
-        expiresAt: expiresAt || null,
-      });
+        const expiry =
+            new Date(expiresAt);
 
-      return shortUrl;
-    } catch (error) {
-      /*
-       * Duplicate shortCode.
-       *
-       * Generate another one and retry.
-       */
+        if (
+            Number.isNaN(expiry.getTime()) ||
+            expiry <= new Date()
+        ) {
 
-      if (error.code === 11000 && error.keyPattern?.shortCode) {
-        continue;
-      }
+            throw new ApiError(
+                StatusCodes.BAD_REQUEST,
+                "Invalid expiration date"
+            );
+        }
 
-      throw error;
+        expiresAt = expiry;
     }
-  }
 
-  throw new ApiError(
-    StatusCodes.INTERNAL_SERVER_ERROR,
-    "Unable to generate unique short URL",
-  );
+
+    /*
+     * Custom alias
+     *
+     * If the user provides an alias,
+     * use it as the shortCode.
+     */
+
+    if (
+        customAlias !== undefined &&
+        customAlias !== null
+    ) {
+
+        if (!validateCustomAlias(customAlias)) {
+
+            throw new ApiError(
+                StatusCodes.BAD_REQUEST,
+                "Invalid custom alias"
+            );
+        }
+
+
+        try {
+
+            const shortUrl =
+                await ShortUrl.create({
+                    userId,
+                    originalUrl,
+                    shortCode: customAlias,
+                    expiresAt:
+                        expiresAt || null,
+                });
+
+            return shortUrl;
+
+        } catch (error) {
+
+            /*
+             * Custom alias already exists.
+             */
+
+            if (
+                error.code === 11000 &&
+                error.keyPattern?.shortCode
+            ) {
+
+                throw new ApiError(
+                    StatusCodes.CONFLICT,
+                    "Custom alias already exists"
+                );
+            }
+
+            throw error;
+        }
+    }
+
+
+    /*
+     * Generate random short code.
+     *
+     * MongoDB's unique index protects us
+     * against concurrent collisions.
+     */
+
+    for (
+        let attempt = 0;
+        attempt < 3;
+        attempt++
+    ) {
+
+        const shortCode =
+            generateShortCode();
+
+        try {
+
+            const shortUrl =
+                await ShortUrl.create({
+                    userId,
+                    originalUrl,
+                    shortCode,
+                    expiresAt:
+                        expiresAt || null,
+                });
+
+            return shortUrl;
+
+        } catch (error) {
+
+            /*
+             * Duplicate shortCode.
+             *
+             * Generate another one
+             * and retry.
+             */
+
+            if (
+                error.code === 11000 &&
+                error.keyPattern?.shortCode
+            ) {
+
+                continue;
+            }
+
+            throw error;
+        }
+    }
+
+
+    throw new ApiError(
+        StatusCodes.INTERNAL_SERVER_ERROR,
+        "Unable to generate unique short URL"
+    );
 };
 
-const getOriginalUrl = async (shortCode) => {
+
+const getOriginalUrl = async (
+    shortCode
+) => {
 
     let cachedUrl = null;
+
 
     /*
      * 1. Try Redis.
@@ -89,7 +193,9 @@ const getOriginalUrl = async (shortCode) => {
     try {
 
         cachedUrl =
-            await getCachedUrl(shortCode);
+            await getCachedUrl(
+                shortCode
+            );
 
     } catch (error) {
 
@@ -121,6 +227,7 @@ const getOriginalUrl = async (shortCode) => {
     console.log(
         "REDIS CACHE MISS"
     );
+
 
     const shortUrl =
         await ShortUrl.findOne({
@@ -211,149 +318,311 @@ const getOriginalUrl = async (shortCode) => {
      */
 
     return {
-        urlId: shortUrl._id,
-        originalUrl: shortUrl.originalUrl
+        urlId:
+            shortUrl._id,
+
+        originalUrl:
+            shortUrl.originalUrl
     };
 };
 
-const getUserUrls = async (userId, page, limit) => {
-  const skip = (page - 1) * limit;
 
-  const [urls, total] = await Promise.all([
-    ShortUrl.find({
-      userId,
-    })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean(),
-
-    ShortUrl.countDocuments({
-      userId,
-    }),
-  ]);
-
-  return {
-    urls,
-    total,
+const getUserUrls = async (
+    userId,
     page,
-    limit,
-  };
+    limit
+) => {
+
+    const skip =
+        (page - 1) * limit;
+
+
+    const [
+        urls,
+        total
+    ] = await Promise.all([
+
+        ShortUrl.find({
+            userId,
+        })
+            .sort({
+                createdAt: -1
+            })
+            .skip(skip)
+            .limit(limit)
+            .lean(),
+
+        ShortUrl.countDocuments({
+            userId,
+        }),
+
+    ]);
+
+
+    return {
+        urls,
+        total,
+        page,
+        limit,
+    };
 };
 
-const getUrlById = async (urlId, userId) => {
-  const shortUrl = await ShortUrl.findOne({
-    _id: urlId,
-    userId,
-  }).lean();
 
-  if (!shortUrl) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "Short URL not found");
-  }
+const getUrlById = async (
+    urlId,
+    userId
+) => {
 
-  return shortUrl;
-};
+    const shortUrl =
+        await ShortUrl.findOne({
+            _id: urlId,
+            userId,
+        }).lean();
 
-const updateUrl = async (urlId, userId, { originalUrl, expiresAt }) => {
-  /*
-   * Find the URL AND verify ownership.
-   */
 
-  const shortUrl = await ShortUrl.findOne({
-    _id: urlId,
-    userId,
-  });
+    if (!shortUrl) {
 
-  if (!shortUrl) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "Short URL not found");
-  }
-
-  /*
-   * Validate original URL if provided.
-   */
-
-  if (originalUrl !== undefined) {
-    if (!validateUrl(originalUrl)) {
-      throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid URL");
+        throw new ApiError(
+            StatusCodes.NOT_FOUND,
+            "Short URL not found"
+        );
     }
 
-    shortUrl.originalUrl = originalUrl;
-  }
 
-  /*
-   * Validate expiration if provided.
-   */
-
-  if (expiresAt !== undefined) {
-    if (expiresAt === null) {
-      shortUrl.expiresAt = null;
-    } else {
-      const expiry = new Date(expiresAt);
-
-      if (Number.isNaN(expiry.getTime()) || expiry <= new Date()) {
-        throw new ApiError(StatusCodes.BAD_REQUEST, "Invalid expiration date");
-      }
-
-      shortUrl.expiresAt = expiry;
-    }
-  }
-
-  /*
-   * Save MongoDB changes.
-   */
-
-  await shortUrl.save();
-
-  /*
-   * Invalidate Redis.
-   *
-   * We don't update the cache directly.
-   * We simply remove the stale value.
-   */
-
-  try {
-    await invalidateUrlCache(shortUrl.shortCode);
-  } catch (error) {
-    console.error("Redis cache invalidation failed:", error.message);
-  }
-
-  return shortUrl;
-};
-
-const deleteUrl = async (urlId, userId) => {
-  const shortUrl = await ShortUrl.findOne({
-    _id: urlId,
-    userId,
-  });
-
-  if (!shortUrl) {
-    throw new ApiError(StatusCodes.NOT_FOUND, "Short URL not found");
-  }
-
-  // Already inactive
-  if (!shortUrl.isActive) {
     return shortUrl;
-  }
-
-  shortUrl.isActive = false;
-
-  await shortUrl.save();
-
-  // Remove stale redirect cache
-  try {
-    await invalidateUrlCache(shortUrl.shortCode);
-  } catch (error) {
-    console.error("Redis cache invalidation failed:", error.message);
-  }
-
-  return shortUrl;
 };
+
+
+const updateUrl = async (
+    urlId,
+    userId,
+    {
+        originalUrl,
+        expiresAt,
+        isActive
+    }
+) => {
+
+    /*
+     * Find the URL AND verify ownership.
+     */
+
+    const shortUrl =
+        await ShortUrl.findOne({
+            _id: urlId,
+            userId,
+        });
+
+
+    if (!shortUrl) {
+
+        throw new ApiError(
+            StatusCodes.NOT_FOUND,
+            "Short URL not found"
+        );
+    }
+
+
+    /*
+     * Validate original URL if provided.
+     */
+
+    if (
+        originalUrl !== undefined
+    ) {
+
+        if (!validateUrl(originalUrl)) {
+
+            throw new ApiError(
+                StatusCodes.BAD_REQUEST,
+                "Invalid URL"
+            );
+        }
+
+        shortUrl.originalUrl =
+            originalUrl;
+    }
+
+
+    /*
+     * Validate expiration if provided.
+     */
+
+    if (
+        expiresAt !== undefined
+    ) {
+
+        if (expiresAt === null) {
+
+            shortUrl.expiresAt =
+                null;
+
+        } else {
+
+            const expiry =
+                new Date(expiresAt);
+
+
+            if (
+                Number.isNaN(
+                    expiry.getTime()
+                ) ||
+                expiry <= new Date()
+            ) {
+
+                throw new ApiError(
+                    StatusCodes.BAD_REQUEST,
+                    "Invalid expiration date"
+                );
+            }
+
+
+            shortUrl.expiresAt =
+                expiry;
+        }
+    }
+
+
+    /*
+     * Update active state if provided.
+     */
+
+    if (
+        isActive !== undefined
+    ) {
+
+        if (
+            typeof isActive !== "boolean"
+        ) {
+
+            throw new ApiError(
+                StatusCodes.BAD_REQUEST,
+                "isActive must be a boolean"
+            );
+        }
+
+
+        /*
+         * An expired URL cannot be activated.
+         */
+
+        if (
+            isActive &&
+            shortUrl.expiresAt &&
+            shortUrl.expiresAt <= new Date()
+        ) {
+
+            throw new ApiError(
+                StatusCodes.BAD_REQUEST,
+                "Cannot activate an expired URL"
+            );
+        }
+
+
+        shortUrl.isActive =
+            isActive;
+    }
+
+
+    /*
+     * Save MongoDB changes.
+     */
+
+    await shortUrl.save();
+
+
+    /*
+     * Invalidate Redis.
+     *
+     * We don't update the cache directly.
+     * We simply remove the stale value.
+     */
+
+    try {
+
+        await invalidateUrlCache(
+            shortUrl.shortCode
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Redis cache invalidation failed:",
+            error.message
+        );
+    }
+
+
+    return shortUrl;
+};
+
+
+const deleteUrl = async (
+    urlId,
+    userId
+) => {
+
+    const shortUrl =
+        await ShortUrl.findOne({
+            _id: urlId,
+            userId,
+        });
+
+
+    if (!shortUrl) {
+
+        throw new ApiError(
+            StatusCodes.NOT_FOUND,
+            "Short URL not found"
+        );
+    }
+
+
+    /*
+     * Already inactive.
+     */
+
+    if (!shortUrl.isActive) {
+
+        return shortUrl;
+    }
+
+
+    shortUrl.isActive =
+        false;
+
+
+    await shortUrl.save();
+
+
+    /*
+     * Remove stale redirect cache.
+     */
+
+    try {
+
+        await invalidateUrlCache(
+            shortUrl.shortCode
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Redis cache invalidation failed:",
+            error.message
+        );
+    }
+
+
+    return shortUrl;
+};
+
 
 module.exports = {
-  createShortUrl,
-  getOriginalUrl,
-  getUserUrls,
-  getUrlById,
-  updateUrl,
-  deleteUrl,
+    createShortUrl,
+    getOriginalUrl,
+    getUserUrls,
+    getUrlById,
+    updateUrl,
+    deleteUrl,
 };
