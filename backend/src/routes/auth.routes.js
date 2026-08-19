@@ -7,7 +7,8 @@ const {
     logoutUser,
     logoutAllUsers,
     googleAuth,
-    googleCallback
+    googleCallback,
+    getCurrentUser
 } = require("../controllers/auth.controller");
 
 const validate =
@@ -27,14 +28,7 @@ const router = express.Router();
 router.get(
     "/me",
     authenticate,
-    (req, res) => {
-
-        return res.json({
-            success: true,
-            message: "Authentication successful",
-            user: req.user
-        });
-    }
+    getCurrentUser
 );
 
 router.post(

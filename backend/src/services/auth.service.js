@@ -412,6 +412,20 @@ const googleLogin = async (code) => {
   };
 };
 
+const authenticateUser = async (userId) => {
+
+  const user = await User.findById(userId);
+
+  if (!user) {
+    throw new ApiError(
+      StatusCodes.UNAUTHORIZED,
+      "User not found"
+    );
+  }
+
+  return user;
+};
+
 module.exports = {
   register,
   login,
@@ -419,4 +433,5 @@ module.exports = {
   logout,
   logoutAll,
   googleLogin,
+  authenticateUser
 };
