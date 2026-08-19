@@ -231,10 +231,29 @@ const getMyUrls =
             const urls =
                 result.urls.map(
                     (url) => ({
-                        ...url,
+                        id:
+                            url._id,
+
+                        originalUrl:
+                            url.originalUrl,
+
+                        shortCode:
+                            url.shortCode,
 
                         shortUrl:
-                            `${process.env.APP_BASE_URL}/${url.shortCode}`
+                            `${process.env.APP_BASE_URL}/${url.shortCode}`,
+
+                        isActive:
+                            url.isActive,
+
+                        expiresAt:
+                            url.expiresAt,
+
+                        createdAt:
+                            url.createdAt,
+
+                        updatedAt:
+                            url.updatedAt
                     })
                 );
 
