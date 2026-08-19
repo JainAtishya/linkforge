@@ -1,12 +1,40 @@
-function Navbar({ brand }) {
-    return (
-        <nav>
-            <h2>{brand}</h2>
+import { Link } from "react-router-dom";
 
-            <div>
-                <button>Login</button>
-                <button>Register</button>
+function Navbar() {
+    return (
+        <nav className="navbar">
+
+            <Link
+                to="/"
+                className="navbar-brand"
+            >
+                LinkForge
+            </Link>
+
+
+            <div className="navbar-links">
+
+                <a href="#features">
+                    Features
+                </a>
+
+                <a href="#how-it-works">
+                    How it works
+                </a>
+
+                <Link to="/login">
+                    Login
+                </Link>
+
+                <Link
+                    to="/register"
+                    className="navbar-register"
+                >
+                    Get Started
+                </Link>
+
             </div>
+
         </nav>
     );
 }
