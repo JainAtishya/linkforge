@@ -22,3 +22,9 @@ export const register = async (name, email, password) => {
 export const loginWithGoogle = () => {
     window.location.href = "/api/v1/auth/google";
 };
+
+export const getCurrentUser = async () => {
+    const response = await apiClient.get("/auth/me");
+
+    return response.data.data.user;
+};
