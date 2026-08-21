@@ -102,3 +102,19 @@ export async function getAnalyticsByDate(
 
     return response.data;
 }
+
+export const accessProtectedUrl = async (
+    shortCode,
+    password
+) => {
+
+    const response =
+        await apiClient.post(
+            `/urls/access/${shortCode}`,
+            {
+                password
+            }
+        );
+
+    return response.data;
+};

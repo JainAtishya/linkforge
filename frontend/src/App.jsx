@@ -11,6 +11,8 @@ import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 
+import ProtectedUrl from "./pages/ProtectedUrl";
+
 import DashboardLayout from "./layouts/DashboardLayout";
 import Dashboard from "./pages/dashboard/Dashboard";
 import MyUrls from "./pages/dashboard/MyUrls";
@@ -22,9 +24,7 @@ function PublicLayout() {
     return (
         <>
             <Navbar />
-
             <Outlet />
-
             <Footer />
         </>
     );
@@ -34,6 +34,7 @@ function PublicLayout() {
 function App() {
 
     return (
+
         <Routes>
 
             {/* =========================
@@ -58,6 +59,16 @@ function App() {
                 />
 
             </Route>
+
+
+            {/* =========================
+                Protected URL Access
+               ========================= */}
+
+            <Route
+                path="/protected/:shortCode"
+                element={<ProtectedUrl />}
+            />
 
 
             {/* =========================
