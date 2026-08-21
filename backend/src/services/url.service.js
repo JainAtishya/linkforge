@@ -227,8 +227,9 @@ const getOriginalUrl = async (shortCode) => {
     /*
      * Check MongoDB first for URL state.
      *
-     * Protected URLs must never bypass
-     * password verification through Redis.
+     * We need to know whether the URL is
+     * password protected before deciding
+     * how the request should proceed.
      */
 
     const shortUrl =
@@ -264,16 +265,21 @@ const getOriginalUrl = async (shortCode) => {
 
 
     /*
-     * Protected URLs are NOT redirected
-     * through the normal Redis path.
+     * Protected URLs must not go through
+     * the normal Redis redirect path.
+     *
+     * Return the information to the controller
+     * so it can redirect the browser to the
+     * React password page.
      */
 
     if (shortUrl.isPasswordProtected) {
 
-        throw new ApiError(
-            StatusCodes.UNAUTHORIZED,
-            "Password required"
-        );
+        return {
+            urlId: shortUrl._id,
+            originalUrl: shortUrl.originalUrl,
+            isPasswordProtected: true
+        };
     }
 
 
@@ -305,7 +311,10 @@ const getOriginalUrl = async (shortCode) => {
             "REDIS CACHE HIT"
         );
 
-        return cachedUrl;
+        return {
+            ...cachedUrl,
+            isPasswordProtected: false
+        };
     }
 
 
@@ -367,8 +376,9 @@ const getOriginalUrl = async (shortCode) => {
             shortUrl._id,
 
         originalUrl:
-            shortUrl.originalUrl
+            shortUrl.originalUrl,
 
+        isPasswordProtected: false
     };
 };
 

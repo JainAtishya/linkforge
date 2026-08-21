@@ -108,6 +108,10 @@ const createUrl = asyncHandler(
  * Redirect Short URL
  */
 
+/*
+ * Redirect Short URL
+ */
+
 const redirectToOriginalUrl =
     asyncHandler(
         async (req, res) => {
@@ -119,11 +123,33 @@ const redirectToOriginalUrl =
 
             const {
                 urlId,
-                originalUrl
+                originalUrl,
+                isPasswordProtected
             } =
                 await getOriginalUrl(
                     shortCode
                 );
+
+
+            /*
+             * Password-protected URL.
+             *
+             * Send the browser to the React
+             * password page instead of trying
+             * to redirect to the original URL.
+             */
+
+            if (isPasswordProtected) {
+
+                const frontendUrl =
+                    process.env.FRONTEND_URL ||
+                    "http://localhost:5173";
+
+                return res.redirect(
+                    302,
+                    `${frontendUrl}/protected/${encodeURIComponent(shortCode)}`
+                );
+            }
 
 
             /*
@@ -196,6 +222,9 @@ const redirectToOriginalUrl =
     );
 
     /*
+ * Access Password-Protected URL
+ */
+/*
  * Access Password-Protected URL
  */
 
@@ -285,13 +314,20 @@ const accessProtectedUrl =
 
 
             /*
-             * Redirect to original URL.
+             * Return the original URL to React.
              */
 
-            return res.redirect(
-                302,
-                originalUrl
-            );
+            return res
+                .status(StatusCodes.OK)
+                .json(
+                    new ApiResponse(
+                        StatusCodes.OK,
+                        {
+                            originalUrl
+                        },
+                        "Password verified successfully"
+                    )
+                );
         }
     );
 
