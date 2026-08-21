@@ -6,9 +6,11 @@ const {
     redirectToOriginalUrl
 } = require("../controllers/url.controller");
 
+
 router.get(
     "/:shortCode",
     redirectToOriginalUrl
 );
+
 
 module.exports = router;

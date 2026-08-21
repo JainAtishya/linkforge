@@ -7,6 +7,11 @@ const {
     validateCustomAlias
 } = require("../validators/url.validator");
 
+const {
+    hashPassword,
+    comparePassword
+} = require("../utils/crypto");
+
 const ApiError = require("../utils/ApiError");
 
 const {
@@ -25,7 +30,8 @@ const createShortUrl = async ({
     userId,
     originalUrl,
     expiresAt,
-    customAlias
+    customAlias,
+    password
 }) => {
 
     /*
@@ -42,7 +48,23 @@ const createShortUrl = async ({
 
 
     /*
-     * Validate expiration if provided
+     * Validate custom alias if provided.
+     */
+
+    if (customAlias !== undefined) {
+
+        if (!validateCustomAlias(customAlias)) {
+
+            throw new ApiError(
+                StatusCodes.BAD_REQUEST,
+                "Invalid custom alias"
+            );
+        }
+    }
+
+
+    /*
+     * Validate expiration if provided.
      */
 
     if (expiresAt) {
@@ -66,25 +88,47 @@ const createShortUrl = async ({
 
 
     /*
-     * Custom alias
-     *
-     * If the user provides an alias,
-     * use it as the shortCode.
+     * Prepare password protection.
      */
 
-    if (
-        customAlias !== undefined &&
-        customAlias !== null
-    ) {
+    let passwordHash = null;
 
-        if (!validateCustomAlias(customAlias)) {
+    const isPasswordProtected =
+        typeof password === "string" &&
+        password.length > 0;
+
+
+    if (isPasswordProtected) {
+
+        if (password.length < 4) {
 
             throw new ApiError(
                 StatusCodes.BAD_REQUEST,
-                "Invalid custom alias"
+                "Password must be at least 4 characters long"
             );
         }
 
+        if (password.length > 100) {
+
+            throw new ApiError(
+                StatusCodes.BAD_REQUEST,
+                "Password cannot exceed 100 characters"
+            );
+        }
+
+        passwordHash =
+            await hashPassword(password);
+    }
+
+
+    /*
+     * Determine short code.
+     *
+     * Custom aliases are used directly.
+     * Otherwise generate a random code.
+     */
+
+    if (customAlias) {
 
         try {
 
@@ -93,8 +137,9 @@ const createShortUrl = async ({
                     userId,
                     originalUrl,
                     shortCode: customAlias,
-                    expiresAt:
-                        expiresAt || null,
+                    expiresAt: expiresAt || null,
+                    isPasswordProtected,
+                    passwordHash
                 });
 
             return shortUrl;
@@ -112,7 +157,7 @@ const createShortUrl = async ({
 
                 throw new ApiError(
                     StatusCodes.CONFLICT,
-                    "Custom alias already exists"
+                    "Custom alias is already in use"
                 );
             }
 
@@ -144,8 +189,9 @@ const createShortUrl = async ({
                     userId,
                     originalUrl,
                     shortCode,
-                    expiresAt:
-                        expiresAt || null,
+                    expiresAt: expiresAt || null,
+                    isPasswordProtected,
+                    passwordHash
                 });
 
             return shortUrl;
@@ -153,10 +199,7 @@ const createShortUrl = async ({
         } catch (error) {
 
             /*
-             * Duplicate shortCode.
-             *
-             * Generate another one
-             * and retry.
+             * Duplicate generated shortCode.
              */
 
             if (
@@ -179,55 +222,14 @@ const createShortUrl = async ({
 };
 
 
-const getOriginalUrl = async (
-    shortCode
-) => {
-
-    let cachedUrl = null;
-
+const getOriginalUrl = async (shortCode) => {
 
     /*
-     * 1. Try Redis.
+     * Check MongoDB first for URL state.
+     *
+     * Protected URLs must never bypass
+     * password verification through Redis.
      */
-
-    try {
-
-        cachedUrl =
-            await getCachedUrl(
-                shortCode
-            );
-
-    } catch (error) {
-
-        console.error(
-            "Redis GET failed:",
-            error.message
-        );
-    }
-
-
-    /*
-     * 2. Cache HIT
-     */
-
-    if (cachedUrl) {
-
-        console.log(
-            "REDIS CACHE HIT"
-        );
-
-        return cachedUrl;
-    }
-
-
-    /*
-     * 3. Cache MISS
-     */
-
-    console.log(
-        "REDIS CACHE MISS"
-    );
-
 
     const shortUrl =
         await ShortUrl.findOne({
@@ -246,7 +248,7 @@ const getOriginalUrl = async (
 
 
     /*
-     * 4. Check expiration.
+     * Check expiration.
      */
 
     if (
@@ -262,7 +264,58 @@ const getOriginalUrl = async (
 
 
     /*
-     * 5. Calculate cache TTL.
+     * Protected URLs are NOT redirected
+     * through the normal Redis path.
+     */
+
+    if (shortUrl.isPasswordProtected) {
+
+        throw new ApiError(
+            StatusCodes.UNAUTHORIZED,
+            "Password required"
+        );
+    }
+
+
+    /*
+     * Only unprotected URLs use Redis.
+     */
+
+    let cachedUrl = null;
+
+    try {
+
+        cachedUrl =
+            await getCachedUrl(
+                shortCode
+            );
+
+    } catch (error) {
+
+        console.error(
+            "Redis GET failed:",
+            error.message
+        );
+    }
+
+
+    if (cachedUrl) {
+
+        console.log(
+            "REDIS CACHE HIT"
+        );
+
+        return cachedUrl;
+    }
+
+
+    console.log(
+        "REDIS CACHE MISS"
+    );
+
+
+    /*
+     * Cache the unprotected URL.
      */
 
     let cacheTtl =
@@ -287,10 +340,6 @@ const getOriginalUrl = async (
     }
 
 
-    /*
-     * 6. Cache the valid URL.
-     */
-
     if (cacheTtl > 0) {
 
         try {
@@ -312,20 +361,117 @@ const getOriginalUrl = async (
     }
 
 
-    /*
-     * 7. Return everything
-     * needed by redirect + analytics.
-     */
-
     return {
+
         urlId:
             shortUrl._id,
 
         originalUrl:
             shortUrl.originalUrl
+
     };
 };
 
+
+const getUrlAccessInfo = async (shortCode) => {
+
+    const shortUrl =
+        await ShortUrl.findOne({
+            shortCode,
+            isActive: true
+        });
+
+    if (!shortUrl) {
+
+        throw new ApiError(
+            StatusCodes.NOT_FOUND,
+            "Short URL not found"
+        );
+    }
+
+
+    /*
+     * Check expiration.
+     */
+
+    if (
+        shortUrl.expiresAt &&
+        shortUrl.expiresAt <= new Date()
+    ) {
+
+        throw new ApiError(
+            StatusCodes.GONE,
+            "Short URL has expired"
+        );
+    }
+
+
+    return shortUrl;
+};
+
+const verifyUrlPassword = async (
+    shortCode,
+    password
+) => {
+
+    if (
+        typeof password !== "string" ||
+        password.length === 0
+    ) {
+
+        throw new ApiError(
+            StatusCodes.BAD_REQUEST,
+            "Password is required"
+        );
+    }
+
+
+    const shortUrl =
+        await getUrlAccessInfo(
+            shortCode
+        );
+
+
+    /*
+     * URL is not password protected.
+     */
+
+    if (!shortUrl.isPasswordProtected) {
+
+        throw new ApiError(
+            StatusCodes.BAD_REQUEST,
+            "This URL is not password protected"
+        );
+    }
+
+
+    /*
+     * Verify password against
+     * stored bcrypt hash.
+     */
+
+    const passwordMatches =
+        await comparePassword(
+            password,
+            shortUrl.passwordHash
+        );
+
+
+    if (!passwordMatches) {
+
+        throw new ApiError(
+            StatusCodes.UNAUTHORIZED,
+            "Incorrect password"
+        );
+    }
+
+
+    return {
+        urlId: shortUrl._id,
+        originalUrl: shortUrl.originalUrl,
+        shortCode: shortUrl.shortCode
+    };
+};
 
 const getUserUrls = async (
     userId,
@@ -625,4 +771,6 @@ module.exports = {
     getUrlById,
     updateUrl,
     deleteUrl,
+    getUrlAccessInfo,
+    verifyUrlPassword
 };

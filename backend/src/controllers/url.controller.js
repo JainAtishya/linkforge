@@ -26,6 +26,8 @@ const {
     getUrlById,
     updateUrl,
     deleteUrl,
+    getUrlAccessInfo,
+    verifyUrlPassword
 } = require("../services/url.service");
 
 const {
@@ -39,25 +41,33 @@ const {
  * Create Short URL
  */
 
+/*
+ * Create Short URL
+ */
+
 const createUrl = asyncHandler(
     async (req, res) => {
 
         const {
             originalUrl,
             expiresAt,
-            customAlias
+            customAlias,
+            password
         } = req.body;
 
 
         const shortUrl =
             await createShortUrl({
+
                 userId: req.user.sub,
 
                 originalUrl,
 
                 expiresAt,
 
-                customAlias
+                customAlias,
+
+                password
             });
 
 
@@ -80,8 +90,12 @@ const createUrl = asyncHandler(
                             `${process.env.APP_BASE_URL}/${shortUrl.shortCode}`,
 
                         expiresAt:
-                            shortUrl.expiresAt
+                            shortUrl.expiresAt,
+
+                        isPasswordProtected:
+                            shortUrl.isPasswordProtected
                     },
+
                     "Short URL created successfully"
                 )
             );
@@ -181,7 +195,105 @@ const redirectToOriginalUrl =
         }
     );
 
+    /*
+ * Access Password-Protected URL
+ */
 
+const accessProtectedUrl =
+    asyncHandler(
+        async (req, res) => {
+
+            const {
+                shortCode
+            } = req.params;
+
+
+            const {
+                password
+            } = req.body;
+
+
+            /*
+             * Verify password.
+             */
+
+            const {
+                urlId,
+                originalUrl
+            } =
+                await verifyUrlPassword(
+                    shortCode,
+                    password
+                );
+
+
+            /*
+             * Extract request metadata.
+             */
+
+            const userAgent =
+                req.get(
+                    "user-agent"
+                ) || "";
+
+
+            const ipAddress =
+                req.ip;
+
+
+            const referrer =
+                req.get(
+                    "referer"
+                ) || null;
+
+
+            const device =
+                getDevice(
+                    userAgent
+                );
+
+
+            const browser =
+                getBrowser(
+                    userAgent
+                );
+
+
+            /*
+             * Password is correct.
+             *
+             * Only NOW count the click.
+             */
+
+            await publishUrlClicked({
+
+                urlId,
+
+                shortCode,
+
+                ipAddress,
+
+                userAgent,
+
+                referrer,
+
+                device,
+
+                browser
+
+            });
+
+
+            /*
+             * Redirect to original URL.
+             */
+
+            return res.redirect(
+                302,
+                originalUrl
+            );
+        }
+    );
 
 /*
  * Get My URLs
@@ -554,6 +666,8 @@ module.exports = {
 
     getAnalytics,
 
-    getAnalyticsByDate
+    getAnalyticsByDate,
+
+    accessProtectedUrl
 
 };

@@ -1,7 +1,6 @@
 const express = require("express");
 
-const router =
-    express.Router();
+const router = express.Router();
 
 const authenticate =
     require("../middleware/auth.middleware");
@@ -13,8 +12,14 @@ const {
     updateMyUrl,
     deleteMyUrl,
     getAnalytics,
-    getAnalyticsByDate
+    getAnalyticsByDate,
+    accessProtectedUrl
 } = require("../controllers/url.controller");
+
+
+/*
+ * Create Short URL
+ */
 
 router.post(
     "/",
@@ -22,11 +27,21 @@ router.post(
     createUrl
 );
 
+
+/*
+ * Get My URLs
+ */
+
 router.get(
     "/",
     authenticate,
     getMyUrls
 );
+
+
+/*
+ * Get Analytics By Date
+ */
 
 router.get(
     "/:id/analytics/date",
@@ -34,11 +49,21 @@ router.get(
     getAnalyticsByDate
 );
 
+
+/*
+ * Get Analytics
+ */
+
 router.get(
     "/:id/analytics",
     authenticate,
     getAnalytics
 );
+
+
+/*
+ * Get Single URL
+ */
 
 router.get(
     "/:id",
@@ -47,6 +72,22 @@ router.get(
 );
 
 
+/*
+ * Access Password-Protected URL
+ *
+ * No authentication required.
+ */
+
+router.post(
+    "/access/:shortCode",
+    accessProtectedUrl
+);
+
+
+/*
+ * Update URL
+ */
+
 router.patch(
     "/:id",
     authenticate,
@@ -54,10 +95,15 @@ router.patch(
 );
 
 
+/*
+ * Deactivate URL
+ */
+
 router.delete(
     "/:id",
     authenticate,
     deleteMyUrl
 );
+
 
 module.exports = router;
