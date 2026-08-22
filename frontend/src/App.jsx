@@ -13,6 +13,8 @@ import Register from "./pages/Register";
 
 import ProtectedUrl from "./pages/ProtectedUrl";
 
+import UrlUnavailable from "./pages/UrlUnavailable";
+
 import DashboardLayout from "./layouts/DashboardLayout";
 import Dashboard from "./pages/dashboard/Dashboard";
 import MyUrls from "./pages/dashboard/MyUrls";
@@ -63,13 +65,17 @@ function App() {
 
             {/* =========================
                 Protected URL Access
-               ========================= */}
+            ========================= */}
 
             <Route
                 path="/protected/:shortCode"
                 element={<ProtectedUrl />}
             />
 
+            <Route
+                path="/url-unavailable"
+                element={<UrlUnavailable />}
+            />
 
             {/* =========================
                 Dashboard
