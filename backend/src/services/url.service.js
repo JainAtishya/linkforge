@@ -1,6 +1,9 @@
-const ShortUrl = require("../models/shortUrl.model");
+const ShortUrl =
+    require("../models/shortUrl.model");
 
-const { generateShortCode } = require("../utils/shortCode");
+const {
+    generateShortCode
+} = require("../utils/shortCode");
 
 const {
     validateUrl,
@@ -12,7 +15,8 @@ const {
     comparePassword
 } = require("../utils/crypto");
 
-const ApiError = require("../utils/ApiError");
+const ApiError =
+    require("../utils/ApiError");
 
 const {
     StatusCodes
@@ -22,10 +26,13 @@ const {
     getCachedUrl,
     cacheUrl,
     DEFAULT_CACHE_TTL,
-    invalidateUrlCache,
+    invalidateUrlCache
 } = require("./cache.service");
 
 
+/*
+ * Create Short URL
+ */
 const createShortUrl = async ({
     userId,
     originalUrl,
@@ -37,7 +44,6 @@ const createShortUrl = async ({
     /*
      * Validate URL
      */
-
     if (!validateUrl(originalUrl)) {
 
         throw new ApiError(
@@ -48,9 +54,8 @@ const createShortUrl = async ({
 
 
     /*
-     * Validate custom alias if provided.
+     * Validate custom alias
      */
-
     if (customAlias !== undefined) {
 
         if (!validateCustomAlias(customAlias)) {
@@ -64,16 +69,17 @@ const createShortUrl = async ({
 
 
     /*
-     * Validate expiration if provided.
+     * Validate expiration
      */
-
     if (expiresAt) {
 
         const expiry =
             new Date(expiresAt);
 
         if (
-            Number.isNaN(expiry.getTime()) ||
+            Number.isNaN(
+                expiry.getTime()
+            ) ||
             expiry <= new Date()
         ) {
 
@@ -88,9 +94,8 @@ const createShortUrl = async ({
 
 
     /*
-     * Prepare password protection.
+     * Prepare password protection
      */
-
     let passwordHash = null;
 
     const isPasswordProtected =
@@ -122,33 +127,22 @@ const createShortUrl = async ({
 
 
     /*
-     * Determine short code.
-     *
-     * Custom aliases are used directly.
-     * Otherwise generate a random code.
+     * Custom alias
      */
-
     if (customAlias) {
 
         try {
 
-            const shortUrl =
-                await ShortUrl.create({
-                    userId,
-                    originalUrl,
-                    shortCode: customAlias,
-                    expiresAt: expiresAt || null,
-                    isPasswordProtected,
-                    passwordHash
-                });
-
-            return shortUrl;
+            return await ShortUrl.create({
+                userId,
+                originalUrl,
+                shortCode: customAlias,
+                expiresAt: expiresAt || null,
+                isPasswordProtected,
+                passwordHash
+            });
 
         } catch (error) {
-
-            /*
-             * Custom alias already exists.
-             */
 
             if (
                 error.code === 11000 &&
@@ -167,12 +161,8 @@ const createShortUrl = async ({
 
 
     /*
-     * Generate random short code.
-     *
-     * MongoDB's unique index protects us
-     * against concurrent collisions.
+     * Generate random short code
      */
-
     for (
         let attempt = 0;
         attempt < 3;
@@ -184,23 +174,16 @@ const createShortUrl = async ({
 
         try {
 
-            const shortUrl =
-                await ShortUrl.create({
-                    userId,
-                    originalUrl,
-                    shortCode,
-                    expiresAt: expiresAt || null,
-                    isPasswordProtected,
-                    passwordHash
-                });
-
-            return shortUrl;
+            return await ShortUrl.create({
+                userId,
+                originalUrl,
+                shortCode,
+                expiresAt: expiresAt || null,
+                isPasswordProtected,
+                passwordHash
+            });
 
         } catch (error) {
-
-            /*
-             * Duplicate generated shortCode.
-             */
 
             if (
                 error.code === 11000 &&
@@ -221,24 +204,67 @@ const createShortUrl = async ({
     );
 };
 
-
-const getOriginalUrl = async (shortCode) => {
+/*
+ * Get original URL
+ */
+const getOriginalUrl = async (
+    shortCode
+) => {
 
     /*
-     * Check MongoDB first for URL state.
+     * Redis is the fast path.
      *
-     * We need to know whether the URL is
-     * password protected before deciding
-     * how the request should proceed.
+     * Only active, public URLs are stored
+     * in Redis.
      */
+    try {
 
+        const cachedUrl =
+            await getCachedUrl(
+                shortCode
+            );
+
+        if (cachedUrl) {
+
+            console.log(
+                "REDIS CACHE HIT"
+            );
+
+            return cachedUrl;
+        }
+
+        console.log(
+            "REDIS CACHE MISS"
+        );
+
+    } catch (error) {
+
+        /*
+         * Redis is optional.
+         * If Redis fails, continue with MongoDB.
+         */
+        console.error(
+            "Redis GET failed:",
+            error.message
+        );
+    }
+
+
+    /*
+     * Redis MISS
+     *
+     * Now check MongoDB for the current
+     * state of the URL.
+     */
     const shortUrl =
         await ShortUrl.findOne({
-            shortCode,
-            isActive: true
+            shortCode
         }).lean();
 
 
+    /*
+     * URL does not exist.
+     */
     if (!shortUrl) {
 
         throw new ApiError(
@@ -249,9 +275,23 @@ const getOriginalUrl = async (shortCode) => {
 
 
     /*
-     * Check expiration.
+     * URL has been deactivated.
+     *
+     * This also covers URLs that are
+     * waiting for permanent deletion.
      */
+    if (!shortUrl.isActive) {
 
+        throw new ApiError(
+            StatusCodes.GONE,
+            "Short URL has been deactivated"
+        );
+    }
+
+
+    /*
+     * URL has expired.
+     */
     if (
         shortUrl.expiresAt &&
         shortUrl.expiresAt <= new Date()
@@ -265,68 +305,25 @@ const getOriginalUrl = async (shortCode) => {
 
 
     /*
-     * Protected URLs must not go through
-     * the normal Redis redirect path.
-     *
-     * Return the information to the controller
-     * so it can redirect the browser to the
-     * React password page.
+     * Password-protected URLs should
+     * never be placed in the public
+     * redirect cache.
      */
-
     if (shortUrl.isPasswordProtected) {
 
-        return {
-            urlId: shortUrl._id,
-            originalUrl: shortUrl.originalUrl,
-            isPasswordProtected: true
-        };
-    }
-
-
-    /*
-     * Only unprotected URLs use Redis.
-     */
-
-    let cachedUrl = null;
-
-    try {
-
-        cachedUrl =
-            await getCachedUrl(
-                shortCode
-            );
-
-    } catch (error) {
-
-        console.error(
-            "Redis GET failed:",
-            error.message
+        throw new ApiError(
+            StatusCodes.UNAUTHORIZED,
+            "Password required"
         );
     }
 
 
-    if (cachedUrl) {
-
-        console.log(
-            "REDIS CACHE HIT"
-        );
-
-        return {
-            ...cachedUrl,
-            isPasswordProtected: false
-        };
-    }
-
-
-    console.log(
-        "REDIS CACHE MISS"
-    );
-
-
     /*
-     * Cache the unprotected URL.
+     * Calculate Redis TTL.
+     *
+     * Never cache longer than the
+     * URL's actual expiration time.
      */
-
     let cacheTtl =
         DEFAULT_CACHE_TTL;
 
@@ -349,6 +346,9 @@ const getOriginalUrl = async (shortCode) => {
     }
 
 
+    /*
+     * Cache the valid public URL.
+     */
     if (cacheTtl > 0) {
 
         try {
@@ -362,6 +362,10 @@ const getOriginalUrl = async (shortCode) => {
 
         } catch (error) {
 
+            /*
+             * Redis failure should never
+             * break URL redirection.
+             */
             console.error(
                 "Redis SET failed:",
                 error.message
@@ -370,26 +374,32 @@ const getOriginalUrl = async (shortCode) => {
     }
 
 
+    /*
+     * Return URL information.
+     */
     return {
-
         urlId:
             shortUrl._id,
 
         originalUrl:
-            shortUrl.originalUrl,
-
-        isPasswordProtected: false
+            shortUrl.originalUrl
     };
 };
 
 
-const getUrlAccessInfo = async (shortCode) => {
+/*
+ * Get access information for a URL.
+ */
+const getUrlAccessInfo = async (
+    shortCode
+) => {
 
     const shortUrl =
         await ShortUrl.findOne({
             shortCode,
             isActive: true
         });
+
 
     if (!shortUrl) {
 
@@ -399,10 +409,6 @@ const getUrlAccessInfo = async (shortCode) => {
         );
     }
 
-
-    /*
-     * Check expiration.
-     */
 
     if (
         shortUrl.expiresAt &&
@@ -419,6 +425,10 @@ const getUrlAccessInfo = async (shortCode) => {
     return shortUrl;
 };
 
+
+/*
+ * Verify protected URL password.
+ */
 const verifyUrlPassword = async (
     shortCode,
     password
@@ -442,10 +452,6 @@ const verifyUrlPassword = async (
         );
 
 
-    /*
-     * URL is not password protected.
-     */
-
     if (!shortUrl.isPasswordProtected) {
 
         throw new ApiError(
@@ -454,11 +460,6 @@ const verifyUrlPassword = async (
         );
     }
 
-
-    /*
-     * Verify password against
-     * stored bcrypt hash.
-     */
 
     const passwordMatches =
         await comparePassword(
@@ -477,12 +478,27 @@ const verifyUrlPassword = async (
 
 
     return {
-        urlId: shortUrl._id,
-        originalUrl: shortUrl.originalUrl,
-        shortCode: shortUrl.shortCode
+        urlId:
+            shortUrl._id,
+
+        originalUrl:
+            shortUrl.originalUrl,
+
+        shortCode:
+            shortUrl.shortCode
     };
 };
 
+
+/*
+ * Get user's URLs.
+ *
+ * Includes:
+ * - active
+ * - deactivated
+ * - expired
+ * - pending deletion
+ */
 const getUserUrls = async (
     userId,
     page,
@@ -499,7 +515,7 @@ const getUserUrls = async (
     ] = await Promise.all([
 
         ShortUrl.find({
-            userId,
+            userId
         })
             .sort({
                 createdAt: -1
@@ -509,8 +525,8 @@ const getUserUrls = async (
             .lean(),
 
         ShortUrl.countDocuments({
-            userId,
-        }),
+            userId
+        })
 
     ]);
 
@@ -519,11 +535,14 @@ const getUserUrls = async (
         urls,
         total,
         page,
-        limit,
+        limit
     };
 };
 
 
+/*
+ * Get one URL owned by user.
+ */
 const getUrlById = async (
     urlId,
     userId
@@ -532,7 +551,7 @@ const getUrlById = async (
     const shortUrl =
         await ShortUrl.findOne({
             _id: urlId,
-            userId,
+            userId
         }).lean();
 
 
@@ -549,6 +568,14 @@ const getUrlById = async (
 };
 
 
+/*
+ * Update URL.
+ *
+ * Handles:
+ * - original URL
+ * - expiration
+ * - active/deactive state
+ */
 const updateUrl = async (
     urlId,
     userId,
@@ -559,14 +586,10 @@ const updateUrl = async (
     }
 ) => {
 
-    /*
-     * Find the URL AND verify ownership.
-     */
-
     const shortUrl =
         await ShortUrl.findOne({
             _id: urlId,
-            userId,
+            userId
         });
 
 
@@ -580,9 +603,23 @@ const updateUrl = async (
 
 
     /*
-     * Validate original URL if provided.
+     * Do not allow modifications to
+     * a URL that is already pending deletion.
+     *
+     * User must restore it first.
      */
+    if (shortUrl.deletionRequestedAt) {
 
+        throw new ApiError(
+            StatusCodes.CONFLICT,
+            "URL is pending deletion. Restore it first."
+        );
+    }
+
+
+    /*
+     * Update original URL.
+     */
     if (
         originalUrl !== undefined
     ) {
@@ -601,9 +638,8 @@ const updateUrl = async (
 
 
     /*
-     * Validate expiration if provided.
+     * Update expiration.
      */
-
     if (
         expiresAt !== undefined
     ) {
@@ -618,7 +654,6 @@ const updateUrl = async (
             const expiry =
                 new Date(expiresAt);
 
-
             if (
                 Number.isNaN(
                     expiry.getTime()
@@ -632,7 +667,6 @@ const updateUrl = async (
                 );
             }
 
-
             shortUrl.expiresAt =
                 expiry;
         }
@@ -640,9 +674,8 @@ const updateUrl = async (
 
 
     /*
-     * Update active state if provided.
+     * Update active state.
      */
-
     if (
         isActive !== undefined
     ) {
@@ -659,9 +692,8 @@ const updateUrl = async (
 
 
         /*
-         * An expired URL cannot be activated.
+         * Expired URLs cannot be activated.
          */
-
         if (
             isActive &&
             shortUrl.expiresAt &&
@@ -680,20 +712,12 @@ const updateUrl = async (
     }
 
 
-    /*
-     * Save MongoDB changes.
-     */
-
     await shortUrl.save();
 
 
     /*
      * Invalidate Redis.
-     *
-     * We don't update the cache directly.
-     * We simply remove the stale value.
      */
-
     try {
 
         await invalidateUrlCache(
@@ -713,7 +737,13 @@ const updateUrl = async (
 };
 
 
-const deleteUrl = async (
+/*
+ * Request permanent deletion.
+ *
+ * This does NOT delete the URL.
+ * It starts the 30-day grace period.
+ */
+const requestUrlDeletion = async (
     urlId,
     userId
 ) => {
@@ -721,7 +751,7 @@ const deleteUrl = async (
     const shortUrl =
         await ShortUrl.findOne({
             _id: urlId,
-            userId,
+            userId
         });
 
 
@@ -734,16 +764,19 @@ const deleteUrl = async (
     }
 
 
-    /*
-     * Already inactive.
-     */
-
-    if (!shortUrl.isActive) {
+    if (shortUrl.deletionRequestedAt) {
 
         return shortUrl;
     }
 
 
+    shortUrl.deletionRequestedAt =
+        new Date();
+
+    /*
+     * Deletion immediately disables
+     * the redirect.
+     */
     shortUrl.isActive =
         false;
 
@@ -752,9 +785,91 @@ const deleteUrl = async (
 
 
     /*
-     * Remove stale redirect cache.
+     * Remove stale Redis entry.
      */
+    try {
 
+        await invalidateUrlCache(
+            shortUrl.shortCode
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Redis cache invalidation failed:",
+            error.message
+        );
+    }
+
+
+    return shortUrl;
+};
+
+
+/*
+ * Restore URL from pending deletion.
+ */
+const restoreUrl = async (
+    urlId,
+    userId
+) => {
+
+    const shortUrl =
+        await ShortUrl.findOne({
+            _id: urlId,
+            userId
+        });
+
+
+    if (!shortUrl) {
+
+        throw new ApiError(
+            StatusCodes.NOT_FOUND,
+            "Short URL not found"
+        );
+    }
+
+
+    if (
+        !shortUrl.deletionRequestedAt
+    ) {
+
+        throw new ApiError(
+            StatusCodes.BAD_REQUEST,
+            "URL is not pending deletion"
+        );
+    }
+
+
+    /*
+     * Do not restore an expired URL.
+     */
+    if (
+        shortUrl.expiresAt &&
+        shortUrl.expiresAt <= new Date()
+    ) {
+
+        throw new ApiError(
+            StatusCodes.BAD_REQUEST,
+            "Cannot restore an expired URL"
+        );
+    }
+
+
+    shortUrl.deletionRequestedAt =
+        null;
+
+    shortUrl.isActive =
+        true;
+
+
+    await shortUrl.save();
+
+
+    /*
+     * Remove any stale cache.
+     * It will be recreated on first access.
+     */
     try {
 
         await invalidateUrlCache(
@@ -780,7 +895,8 @@ module.exports = {
     getUserUrls,
     getUrlById,
     updateUrl,
-    deleteUrl,
+    requestUrlDeletion,
+    restoreUrl,
     getUrlAccessInfo,
     verifyUrlPassword
 };

@@ -1,6 +1,8 @@
-const express = require("express");
+const express =
+    require("express");
 
-const router = express.Router();
+const router =
+    express.Router();
 
 const authenticate =
     require("../middleware/auth.middleware");
@@ -10,17 +12,18 @@ const {
     getMyUrls,
     getUrl,
     updateMyUrl,
-    deleteMyUrl,
+    requestDeleteUrl,
+    restoreDeletedUrl,
     getAnalytics,
     getAnalyticsByDate,
     accessProtectedUrl
-} = require("../controllers/url.controller");
+} =
+    require("../controllers/url.controller");
 
 
 /*
  * Create Short URL
  */
-
 router.post(
     "/",
     authenticate,
@@ -31,7 +34,6 @@ router.post(
 /*
  * Get My URLs
  */
-
 router.get(
     "/",
     authenticate,
@@ -40,9 +42,8 @@ router.get(
 
 
 /*
- * Get Analytics By Date
+ * Analytics By Date
  */
-
 router.get(
     "/:id/analytics/date",
     authenticate,
@@ -51,9 +52,8 @@ router.get(
 
 
 /*
- * Get Analytics
+ * Analytics
  */
-
 router.get(
     "/:id/analytics",
     authenticate,
@@ -64,7 +64,6 @@ router.get(
 /*
  * Get Single URL
  */
-
 router.get(
     "/:id",
     authenticate,
@@ -77,7 +76,6 @@ router.get(
  *
  * No authentication required.
  */
-
 router.post(
     "/access/:shortCode",
     accessProtectedUrl
@@ -85,9 +83,8 @@ router.post(
 
 
 /*
- * Update URL
+ * Update / Activate / Deactivate URL
  */
-
 router.patch(
     "/:id",
     authenticate,
@@ -96,13 +93,25 @@ router.patch(
 
 
 /*
- * Deactivate URL
+ * Request permanent deletion.
+ *
+ * URL is NOT deleted immediately.
+ * It enters a 30-day grace period.
  */
-
-router.delete(
-    "/:id",
+router.post(
+    "/:id/delete",
     authenticate,
-    deleteMyUrl
+    requestDeleteUrl
+);
+
+
+/*
+ * Cancel deletion request.
+ */
+router.post(
+    "/:id/restore",
+    authenticate,
+    restoreDeletedUrl
 );
 
 

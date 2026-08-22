@@ -1,4 +1,5 @@
-const asyncHandler = require("../utils/asyncHandler");
+const asyncHandler =
+    require("../utils/asyncHandler");
 
 const {
     getDevice,
@@ -25,8 +26,8 @@ const {
     getUserUrls,
     getUrlById,
     updateUrl,
-    deleteUrl,
-    getUrlAccessInfo,
+    requestUrlDeletion,
+    restoreUrl,
     verifyUrlPassword
 } = require("../services/url.service");
 
@@ -36,82 +37,85 @@ const {
 } = require("../services/analytics.service");
 
 
-
 /*
  * Create Short URL
  */
+const createUrl =
+    asyncHandler(
+        async (req, res) => {
 
-/*
- * Create Short URL
- */
-
-const createUrl = asyncHandler(
-    async (req, res) => {
-
-        const {
-            originalUrl,
-            expiresAt,
-            customAlias,
-            password
-        } = req.body;
-
-
-        const shortUrl =
-            await createShortUrl({
-
-                userId: req.user.sub,
-
+            const {
                 originalUrl,
-
                 expiresAt,
-
                 customAlias,
-
                 password
-            });
+            } = req.body;
 
 
-        return res
-            .status(StatusCodes.CREATED)
-            .json(
-                new ApiResponse(
-                    StatusCodes.CREATED,
-                    {
-                        id:
-                            shortUrl._id,
+            const shortUrl =
+                await createShortUrl({
 
-                        originalUrl:
-                            shortUrl.originalUrl,
+                    userId:
+                        req.user.sub,
 
-                        shortCode:
-                            shortUrl.shortCode,
+                    originalUrl,
 
-                        shortUrl:
-                            `${process.env.APP_BASE_URL}/${shortUrl.shortCode}`,
+                    expiresAt,
 
-                        expiresAt:
-                            shortUrl.expiresAt,
+                    customAlias,
 
-                        isPasswordProtected:
-                            shortUrl.isPasswordProtected
-                    },
+                    password
+                });
 
-                    "Short URL created successfully"
+
+            return res
+                .status(
+                    StatusCodes.CREATED
                 )
-            );
-    }
-);
+                .json(
 
+                    new ApiResponse(
+                        StatusCodes.CREATED,
+
+                        {
+                            id:
+                                shortUrl._id,
+
+                            originalUrl:
+                                shortUrl.originalUrl,
+
+                            shortCode:
+                                shortUrl.shortCode,
+
+                            shortUrl:
+                                `${process.env.APP_BASE_URL}/${shortUrl.shortCode}`,
+
+                            expiresAt:
+                                shortUrl.expiresAt,
+
+                            isPasswordProtected:
+                                shortUrl.isPasswordProtected,
+
+                            isActive:
+                                shortUrl.isActive,
+
+                            deletionRequestedAt:
+                                shortUrl.deletionRequestedAt
+                        },
+
+                        "Short URL created successfully"
+                    )
+                );
+        }
+    );
 
 
 /*
  * Redirect Short URL
  */
-
 /*
  * Redirect Short URL
  */
-
 const redirectToOriginalUrl =
     asyncHandler(
         async (req, res) => {
@@ -121,113 +125,170 @@ const redirectToOriginalUrl =
             } = req.params;
 
 
-            const {
-                urlId,
-                originalUrl,
-                isPasswordProtected
-            } =
-                await getOriginalUrl(
-                    shortCode
+            try {
+
+                const {
+                    urlId,
+                    originalUrl
+                } =
+                    await getOriginalUrl(
+                        shortCode
+                    );
+
+
+                /*
+                 * Collect analytics information
+                 * only for successful URL access.
+                 */
+                const userAgent =
+                    req.get(
+                        "user-agent"
+                    ) || "";
+
+
+                const ipAddress =
+                    req.ip;
+
+
+                const referrer =
+                    req.get(
+                        "referer"
+                    ) || null;
+
+
+                const device =
+                    getDevice(
+                        userAgent
+                    );
+
+
+                const browser =
+                    getBrowser(
+                        userAgent
+                    );
+
+
+                /*
+                 * Count the click only after
+                 * successful URL validation.
+                 */
+                await publishUrlClicked({
+
+                    urlId,
+
+                    shortCode,
+
+                    ipAddress,
+
+                    userAgent,
+
+                    referrer,
+
+                    device,
+
+                    browser
+
+                });
+
+
+                /*
+                 * Redirect to the original URL.
+                 */
+                return res.redirect(
+                    302,
+                    originalUrl
                 );
 
-
-            /*
-             * Password-protected URL.
-             *
-             * Send the browser to the React
-             * password page instead of trying
-             * to redirect to the original URL.
-             */
-
-            if (isPasswordProtected) {
+            } catch (error) {
 
                 const frontendUrl =
                     process.env.FRONTEND_URL ||
                     "http://localhost:5173";
 
-                return res.redirect(
-                    302,
-                    `${frontendUrl}/protected/${encodeURIComponent(shortCode)}`
-                );
+
+                /*
+                 * Password protected URL.
+                 *
+                 * Send the user to our React
+                 * password page instead of
+                 * returning JSON.
+                 */
+                if (
+                    error.statusCode ===
+                    StatusCodes.UNAUTHORIZED
+                ) {
+
+                    return res.redirect(
+                        `${frontendUrl}/protected/${shortCode}`
+                    );
+                }
+
+
+                /*
+                 * Expired URL.
+                 */
+                if (
+                    error.statusCode ===
+                    StatusCodes.GONE &&
+                    error.message ===
+                        "Short URL has expired"
+                ) {
+
+                    return res.redirect(
+                        `${frontendUrl}/url-unavailable?reason=expired`
+                    );
+                }
+
+
+                /*
+                 * Deactivated URL.
+                 *
+                 * This also covers URLs that are
+                 * pending permanent deletion because
+                 * requesting deletion sets isActive=false.
+                 */
+                if (
+                    error.statusCode ===
+                    StatusCodes.GONE &&
+                    error.message ===
+                        "Short URL has been deactivated"
+                ) {
+
+                    return res.redirect(
+                        `${frontendUrl}/url-unavailable?reason=deactivated`
+                    );
+                }
+
+
+                /*
+                 * URL does not exist.
+                 */
+                if (
+                    error.statusCode ===
+                    StatusCodes.NOT_FOUND
+                ) {
+
+                    return res.redirect(
+                        `${frontendUrl}/url-unavailable?reason=not-found`
+                    );
+                }
+
+
+                /*
+                 * Unexpected error.
+                 *
+                 * Re-throw it so the normal
+                 * global error handler handles it.
+                 */
+                throw error;
             }
-
-
-            /*
-             * Extract request metadata.
-             */
-
-            const userAgent =
-                req.get(
-                    "user-agent"
-                ) || "";
-
-
-            const ipAddress =
-                req.ip;
-
-
-            const referrer =
-                req.get(
-                    "referer"
-                ) || null;
-
-
-            const device =
-                getDevice(
-                    userAgent
-                );
-
-
-            const browser =
-                getBrowser(
-                    userAgent
-                );
-
-
-            /*
-             * Publish analytics event.
-             *
-             * Kafka failure must NOT
-             * break the redirect.
-             */
-
-            await publishUrlClicked({
-
-                urlId,
-
-                shortCode,
-
-                ipAddress,
-
-                userAgent,
-
-                referrer,
-
-                device,
-
-                browser
-
-            });
-
-
-            /*
-             * Redirect user.
-             */
-
-            return res.redirect(
-                302,
-                originalUrl
-            );
         }
     );
 
-    /*
- * Access Password-Protected URL
- */
+
 /*
  * Access Password-Protected URL
  */
-
 const accessProtectedUrl =
     asyncHandler(
         async (req, res) => {
@@ -242,10 +303,6 @@ const accessProtectedUrl =
             } = req.body;
 
 
-            /*
-             * Verify password.
-             */
-
             const {
                 urlId,
                 originalUrl
@@ -255,10 +312,6 @@ const accessProtectedUrl =
                     password
                 );
 
-
-            /*
-             * Extract request metadata.
-             */
 
             const userAgent =
                 req.get(
@@ -289,11 +342,9 @@ const accessProtectedUrl =
 
 
             /*
-             * Password is correct.
-             *
-             * Only NOW count the click.
+             * Only count the click after
+             * successful password verification.
              */
-
             await publishUrlClicked({
 
                 urlId,
@@ -309,32 +360,32 @@ const accessProtectedUrl =
                 device,
 
                 browser
-
             });
 
 
-            /*
-             * Return the original URL to React.
-             */
-
             return res
-                .status(StatusCodes.OK)
+                .status(
+                    StatusCodes.OK
+                )
                 .json(
+
                     new ApiResponse(
                         StatusCodes.OK,
+
                         {
                             originalUrl
                         },
+
                         "Password verified successfully"
                     )
                 );
         }
     );
 
+
 /*
  * Get My URLs
  */
-
 const getMyUrls =
     asyncHandler(
         async (req, res) => {
@@ -368,17 +419,10 @@ const getMyUrls =
                 );
 
 
-            /*
-             * Add the complete short URL
-             * to every returned URL.
-             *
-             * This keeps URL construction
-             * inside the backend.
-             */
-
             const urls =
                 result.urls.map(
                     (url) => ({
+
                         id:
                             url._id,
 
@@ -397,6 +441,12 @@ const getMyUrls =
                         expiresAt:
                             url.expiresAt,
 
+                        deletionRequestedAt:
+                            url.deletionRequestedAt,
+
+                        isPasswordProtected:
+                            url.isPasswordProtected,
+
                         createdAt:
                             url.createdAt,
 
@@ -407,14 +457,19 @@ const getMyUrls =
 
 
             return res
-                .status(StatusCodes.OK)
+                .status(
+                    StatusCodes.OK
+                )
                 .json(
+
                     new ApiResponse(
                         StatusCodes.OK,
+
                         {
                             ...result,
                             urls
                         },
+
                         "URLs fetched successfully"
                     )
                 );
@@ -422,11 +477,9 @@ const getMyUrls =
     );
 
 
-
 /*
  * Get Single URL
  */
-
 const getUrl =
     asyncHandler(
         async (req, res) => {
@@ -444,10 +497,14 @@ const getUrl =
 
 
             return res
-                .status(StatusCodes.OK)
+                .status(
+                    StatusCodes.OK
+                )
                 .json(
+
                     new ApiResponse(
                         StatusCodes.OK,
+
                         {
                             id:
                                 shortUrl._id,
@@ -467,12 +524,19 @@ const getUrl =
                             expiresAt:
                                 shortUrl.expiresAt,
 
+                            deletionRequestedAt:
+                                shortUrl.deletionRequestedAt,
+
+                            isPasswordProtected:
+                                shortUrl.isPasswordProtected,
+
                             createdAt:
                                 shortUrl.createdAt,
 
                             updatedAt:
                                 shortUrl.updatedAt
                         },
+
                         "URL fetched successfully"
                     )
                 );
@@ -480,11 +544,14 @@ const getUrl =
     );
 
 
-
 /*
  * Update My URL
+ *
+ * Used for:
+ * - editing
+ * - deactivate
+ * - reactivate
  */
-
 const updateMyUrl =
     asyncHandler(
         async (req, res) => {
@@ -500,11 +567,6 @@ const updateMyUrl =
                 isActive
             } = req.body;
 
-
-            /*
-             * At least one field
-             * must be provided.
-             */
 
             if (
                 originalUrl === undefined &&
@@ -532,10 +594,14 @@ const updateMyUrl =
 
 
             return res
-                .status(StatusCodes.OK)
+                .status(
+                    StatusCodes.OK
+                )
                 .json(
+
                     new ApiResponse(
                         StatusCodes.OK,
+
                         {
                             id:
                                 shortUrl._id,
@@ -555,12 +621,16 @@ const updateMyUrl =
                             expiresAt:
                                 shortUrl.expiresAt,
 
+                            deletionRequestedAt:
+                                shortUrl.deletionRequestedAt,
+
                             createdAt:
                                 shortUrl.createdAt,
 
                             updatedAt:
                                 shortUrl.updatedAt
                         },
+
                         "URL updated successfully"
                     )
                 );
@@ -568,16 +638,12 @@ const updateMyUrl =
     );
 
 
-
 /*
- * Deactivate My URL
+ * Request URL deletion.
  *
- * NOTE:
- * deleteUrl() currently performs a
- * soft delete by setting isActive=false.
+ * This starts the 30-day grace period.
  */
-
-const deleteMyUrl =
+const requestDeleteUrl =
     asyncHandler(
         async (req, res) => {
 
@@ -586,30 +652,89 @@ const deleteMyUrl =
             } = req.params;
 
 
-            await deleteUrl(
-                id,
-                req.user.sub
-            );
+            const shortUrl =
+                await requestUrlDeletion(
+                    id,
+                    req.user.sub
+                );
 
 
             return res
-                .status(StatusCodes.OK)
+                .status(
+                    StatusCodes.OK
+                )
                 .json(
+
                     new ApiResponse(
                         StatusCodes.OK,
-                        null,
-                        "Short URL deactivated successfully"
+
+                        {
+                            id:
+                                shortUrl._id,
+
+                            isActive:
+                                shortUrl.isActive,
+
+                            deletionRequestedAt:
+                                shortUrl.deletionRequestedAt
+                        },
+
+                        "URL scheduled for deletion"
                     )
                 );
         }
     );
 
 
+/*
+ * Restore URL from deletion window.
+ */
+const restoreDeletedUrl =
+    asyncHandler(
+        async (req, res) => {
+
+            const {
+                id
+            } = req.params;
+
+
+            const shortUrl =
+                await restoreUrl(
+                    id,
+                    req.user.sub
+                );
+
+
+            return res
+                .status(
+                    StatusCodes.OK
+                )
+                .json(
+
+                    new ApiResponse(
+                        StatusCodes.OK,
+
+                        {
+                            id:
+                                shortUrl._id,
+
+                            isActive:
+                                shortUrl.isActive,
+
+                            deletionRequestedAt:
+                                shortUrl.deletionRequestedAt
+                        },
+
+                        "URL restored successfully"
+                    )
+                );
+        }
+    );
+
 
 /*
  * Get Analytics
  */
-
 const getAnalytics =
     asyncHandler(
         async (req, res) => {
@@ -633,8 +758,11 @@ const getAnalytics =
 
 
             return res
-                .status(StatusCodes.OK)
+                .status(
+                    StatusCodes.OK
+                )
                 .json(
+
                     new ApiResponse(
                         StatusCodes.OK,
                         analytics,
@@ -645,11 +773,9 @@ const getAnalytics =
     );
 
 
-
 /*
  * Get Analytics By Date
  */
-
 const getAnalyticsByDate =
     asyncHandler(
         async (req, res) => {
@@ -673,8 +799,11 @@ const getAnalyticsByDate =
 
 
             return res
-                .status(StatusCodes.OK)
+                .status(
+                    StatusCodes.OK
+                )
                 .json(
+
                     new ApiResponse(
                         StatusCodes.OK,
                         analytics,
@@ -683,7 +812,6 @@ const getAnalyticsByDate =
                 );
         }
     );
-
 
 
 module.exports = {
@@ -698,12 +826,13 @@ module.exports = {
 
     updateMyUrl,
 
-    deleteMyUrl,
+    requestDeleteUrl,
+
+    restoreDeletedUrl,
 
     getAnalytics,
 
     getAnalyticsByDate,
 
     accessProtectedUrl
-
 };
