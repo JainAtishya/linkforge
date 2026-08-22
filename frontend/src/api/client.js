@@ -13,8 +13,8 @@ const apiClient = axios.create({
 /*
  * Prevent multiple API requests from
  * creating multiple refresh requests
- * at the same time.
  */
+
 let refreshPromise = null;
 
 
@@ -29,7 +29,8 @@ apiClient.interceptors.response.use(
 
     async (error) => {
 
-        const originalRequest = error.config;
+        const originalRequest =
+            error.config;
 
 
         /*
@@ -40,7 +41,9 @@ apiClient.interceptors.response.use(
          */
 
         if (
-            originalRequest?.url?.includes("/auth/refresh")
+            originalRequest?.url?.includes(
+                "/auth/refresh"
+            )
         ) {
 
             return Promise.reject(error);
@@ -68,19 +71,23 @@ apiClient.interceptors.response.use(
         try {
 
             /*
-             * If another request is already refreshing
-             * the token, wait for that same request.
+             * If another request is already
+             * refreshing the token, wait for it.
              */
 
             if (!refreshPromise) {
 
                 refreshPromise =
                     axios.post(
+
                         "/api/v1/auth/refresh",
+
                         {},
+
                         {
                             withCredentials: true
                         }
+
                     );
 
             }
@@ -90,23 +97,68 @@ apiClient.interceptors.response.use(
 
 
             /*
-             * Refresh completed successfully.
+             * Refresh succeeded.
              *
-             * The backend has issued a new
-             * access-token cookie.
+             * Backend has issued new
+             * access + refresh cookies.
+             *
+             * Retry original request.
              */
 
-            return apiClient(originalRequest);
+            return apiClient(
+                originalRequest
+            );
+
 
         } catch (refreshError) {
 
             /*
-             * Refresh token/session is invalid.
+             * Refresh failed.
              *
-             * Do NOT retry again.
+             * This means the refresh token/session
+             * is no longer valid.
+             *
+             * Example:
+             *
+             * Logout all devices
+             *       ↓
+             * Session becomes REVOKED
+             *       ↓
+             * Access token eventually expires
+             *       ↓
+             * Refresh attempted
+             *       ↓
+             * 401 Invalid refresh session
+             *
+             * At this point the user is no longer
+             * authenticated, so send them to login.
              */
 
-            return Promise.reject(refreshError);
+            console.error(
+                "Refresh failed. Redirecting to login.",
+                refreshError
+            );
+
+
+            /*
+             * Avoid redirecting if we're already
+             * on the login page.
+             */
+
+            if (
+                window.location.pathname !== "/login"
+            ) {
+
+                window.location.replace(
+                    "/login"
+                );
+
+            }
+
+
+            return Promise.reject(
+                refreshError
+            );
 
         } finally {
 

@@ -3095,3 +3095,93 @@ button {
     }
 
 }
+
+/* =================================
+   Dashboard Sidebar Footer
+   ================================= */
+
+.dashboard-sidebar {
+    display: flex;
+    flex-direction: column;
+}
+
+
+.dashboard-sidebar-footer {
+    margin-top: auto;
+    padding-top: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+
+/* =================================
+   Logout Buttons
+   ================================= */
+
+.dashboard-logout-button,
+.dashboard-logout-all-button {
+    width: 100%;
+    border: none;
+    border-radius: 10px;
+    padding: 11px 14px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition:
+        background-color 0.2s ease,
+        color 0.2s ease,
+        transform 0.2s ease,
+        opacity 0.2s ease;
+}
+
+
+.dashboard-logout-button {
+    background: transparent;
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+
+.dashboard-logout-button:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+
+.dashboard-logout-all-button {
+    background: rgba(255, 255, 255, 0.06);
+    color: #d8e5ee;
+}
+
+
+.dashboard-logout-all-button:hover {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+
+.dashboard-logout-button:disabled,
+.dashboard-logout-all-button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+
+.dashboard-logout-button:active:not(:disabled),
+.dashboard-logout-all-button:active:not(:disabled) {
+    transform: scale(0.98);
+}
+
+
+/* =================================
+   Logout Error
+   ================================= */
+
+.sidebar-logout-error {
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(220, 80, 80, 0.12);
+    color: #ffb4b4;
+    font-size: 12px;
+    line-height: 1.4;
+}
