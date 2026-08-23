@@ -8,6 +8,12 @@ const authenticate =
     require("../middleware/auth.middleware");
 
 const {
+    passwordLimiter
+} = require(
+    "../middleware/rateLimit.middleware"
+);
+
+const {
     createUrl,
     getMyUrls,
     getUrl,
@@ -22,8 +28,11 @@ const {
 
 
 /*
+ * =========================
  * Create Short URL
+ * =========================
  */
+
 router.post(
     "/",
     authenticate,
@@ -32,8 +41,11 @@ router.post(
 
 
 /*
+ * =========================
  * Get My URLs
+ * =========================
  */
+
 router.get(
     "/",
     authenticate,
@@ -42,8 +54,11 @@ router.get(
 
 
 /*
+ * =========================
  * Analytics By Date
+ * =========================
  */
+
 router.get(
     "/:id/analytics/date",
     authenticate,
@@ -52,8 +67,11 @@ router.get(
 
 
 /*
+ * =========================
  * Analytics
+ * =========================
  */
+
 router.get(
     "/:id/analytics",
     authenticate,
@@ -62,8 +80,11 @@ router.get(
 
 
 /*
+ * =========================
  * Get Single URL
+ * =========================
  */
+
 router.get(
     "/:id",
     authenticate,
@@ -72,19 +93,29 @@ router.get(
 
 
 /*
+ * =========================
  * Access Password-Protected URL
  *
  * No authentication required.
+ *
+ * Strict rate limit protects against
+ * password guessing attacks.
+ * =========================
  */
+
 router.post(
     "/access/:shortCode",
+    passwordLimiter,
     accessProtectedUrl
 );
 
 
 /*
+ * =========================
  * Update / Activate / Deactivate URL
+ * =========================
  */
+
 router.patch(
     "/:id",
     authenticate,
@@ -93,11 +124,14 @@ router.patch(
 
 
 /*
- * Request permanent deletion.
+ * =========================
+ * Request permanent deletion
  *
  * URL is NOT deleted immediately.
  * It enters a 30-day grace period.
+ * =========================
  */
+
 router.post(
     "/:id/delete",
     authenticate,
@@ -106,8 +140,11 @@ router.post(
 
 
 /*
- * Cancel deletion request.
+ * =========================
+ * Cancel deletion request
+ * =========================
  */
+
 router.post(
     "/:id/restore",
     authenticate,

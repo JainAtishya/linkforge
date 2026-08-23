@@ -1,16 +1,23 @@
 const express = require("express");
+
 const cors = require("cors");
+
 const cookieParser = require("cookie-parser");
 
-const healthRoutes = require("./routes/health.routes");
+const healthRoutes =
+    require("./routes/health.routes");
 
-const notFoundHandler = require("./middleware/notFound.middleware");
+const notFoundHandler =
+    require("./middleware/notFound.middleware");
 
-const errorHandler = require("./middleware/error.middleware");
+const errorHandler =
+    require("./middleware/error.middleware");
 
-const logger = require("./config/logger");
+const logger =
+    require("./config/logger");
 
-const authRoutes = require("./routes/auth.routes");
+const authRoutes =
+    require("./routes/auth.routes");
 
 const redirectRoutes =
     require("./routes/redirect.routes");
@@ -18,71 +25,168 @@ const redirectRoutes =
 const urlRoutes =
     require("./routes/url.routes");
 
+const {
+    authLimiter,
+    apiLimiter
+} = require("./middleware/rateLimit.middleware");
+
+
 const app = express();
 
-app.set("trust proxy", 1);
 
-// Middlewares
+/*
+ * Trust reverse proxy.
+ *
+ * Required when the application is
+ * deployed behind a proxy/load balancer.
+ */
+app.set(
+    "trust proxy",
+    1
+);
+
+
+/*
+ * =========================
+ * Middlewares
+ * =========================
+ */
 
 app.use(logger);
 
-app.use(express.json());
+app.use(
+    express.json()
+);
 
 app.use(
     cors({
-        origin:"http://localhost:3000",
-        credentials:true
+        origin:
+            "http://localhost:3000",
+
+        credentials: true
     })
 );
 
-app.use(cookieParser());
+app.use(
+    cookieParser()
+);
 
 
-// Routes
+/*
+ * =========================
+ * Routes
+ * =========================
+ */
 
+
+/*
+ * Public short URL redirects
+ *
+ * No general API limiter here.
+ *
+ * Redirect traffic can naturally be
+ * much higher than normal API traffic.
+ */
 app.use(
     "/",
     redirectRoutes
 );
 
+
+/*
+ * Authentication
+ *
+ * Strict rate limiting protects
+ * login/register endpoints.
+ */
 app.use(
     "/api/v1/auth",
+    authLimiter,
     authRoutes
 );
 
+
+/*
+ * URL APIs
+ *
+ * General API rate limiting.
+ */
 app.use(
     "/api/v1/urls",
+    apiLimiter,
     urlRoutes
 );
 
-app.get("/",(req,res)=>{
 
-    res.json({
-        message:"LinkForge API running"
-    });
+/*
+ * =========================
+ * Root
+ * =========================
+ */
 
-});
+app.get(
+    "/",
+    (req, res) => {
 
-// for testing
-app.get("/test-error",(req,res)=>{
+        res.json({
+            message:
+                "LinkForge API running"
+        });
 
-    throw new Error("Testing error");
-
-});
-
-
-app.use("/health",healthRoutes);
-
-
-// 404 Handler
-
-app.use(notFoundHandler);
+    }
+);
 
 
-// Global Error Handler
+/*
+ * =========================
+ * Error testing
+ * =========================
+ */
 
-app.use(errorHandler);
+app.get(
+    "/test-error",
+    (req, res) => {
 
+        throw new Error(
+            "Testing error"
+        );
+
+    }
+);
+
+
+/*
+ * =========================
+ * Health
+ * =========================
+ */
+
+app.use(
+    "/health",
+    healthRoutes
+);
+
+
+/*
+ * =========================
+ * 404 Handler
+ * =========================
+ */
+
+app.use(
+    notFoundHandler
+);
+
+
+/*
+ * =========================
+ * Global Error Handler
+ * =========================
+ */
+
+app.use(
+    errorHandler
+);
 
 
 module.exports = app;
