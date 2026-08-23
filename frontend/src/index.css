@@ -6392,3 +6392,21 @@ body {
     }
 
 }
+
+.create-link-mobile-cancel {
+    display: none;
+}
+
+@media (max-width: 768px) {
+
+    .create-link-header-button {
+        display: none !important;
+    }
+
+    .create-link-mobile-cancel {
+        display: flex;
+        width: 100%;
+        margin-top: -24px;
+        margin-bottom: 32px;
+    }
+}

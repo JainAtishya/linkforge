@@ -716,7 +716,11 @@ function MyUrls() {
 
                 <button
                     type="button"
-                    className="dashboard-primary-button"
+                    className={`dashboard-primary-button ${
+                        showCreateForm
+                            ? "create-link-header-button"
+                            : ""
+                    }`}
                     onClick={() =>
                         setShowCreateForm(
                             previous =>
@@ -738,205 +742,222 @@ function MyUrls() {
 
             {showCreateForm && (
 
-                <section className="create-url-card">
+                <>
 
-                    <div className="create-url-header">
+                    <section className="create-url-card">
 
-                        <h2>
-                            Create a short link
-                        </h2>
+                        <div className="create-url-header">
 
-                        <p>
-                            Turn a long URL into a
-                            simple, shareable link.
-                        </p>
+                            <h2>
+                                Create a short link
+                            </h2>
 
-                    </div>
-
-
-                    {createError && (
-
-                        <div className="dashboard-error-box">
-                            {createError}
-                        </div>
-
-                    )}
-
-
-                    <form
-                        className="create-url-form"
-                        onSubmit={handleCreate}
-                    >
-
-
-                        {/* Original URL */}
-
-                        <div className="form-group">
-
-                            <label htmlFor="originalUrl">
-                                Original URL
-                            </label>
-
-                            <input
-                                id="originalUrl"
-                                type="url"
-                                value={originalUrl}
-                                onChange={
-                                    event =>
-                                        setOriginalUrl(
-                                            event.target.value
-                                        )
-                                }
-                                placeholder="https://example.com"
-                                required
-                            />
+                            <p>
+                                Turn a long URL into a
+                                simple, shareable link.
+                            </p>
 
                         </div>
 
 
-                        {/* Custom Alias */}
+                        {createError && (
 
-                        <div className="form-group">
-
-                            <label htmlFor="customAlias">
-
-                                Custom alias
-
-                                <span>
-                                    {" "}Optional
-                                </span>
-
-                            </label>
-
-                            <input
-                                id="customAlias"
-                                type="text"
-                                value={customAlias}
-                                onChange={
-                                    event =>
-                                        setCustomAlias(
-                                            event.target.value
-                                        )
-                                }
-                                placeholder="my-link"
-                                minLength={3}
-                                maxLength={30}
-                                pattern="[a-zA-Z0-9_-]+"
-                            />
-
-                        </div>
-
-
-                        {/* Expiration */}
-
-                        <div className="form-group">
-
-                            <label htmlFor="expiresAt">
-
-                                Expiration
-
-                                <span>
-                                    {" "}Optional
-                                </span>
-
-                            </label>
-
-                            <input
-                                id="expiresAt"
-                                type="datetime-local"
-                                value={expiresAt}
-                                onChange={
-                                    event =>
-                                        setExpiresAt(
-                                            event.target.value
-                                        )
-                                }
-                            />
-
-                        </div>
-
-
-                        {/* Password Protection */}
-
-                        <div className="form-group">
-
-                            <label className="checkbox-label">
-
-                                <input
-                                    type="checkbox"
-                                    checked={
-                                        passwordProtected
-                                    }
-                                    onChange={
-                                        event =>
-                                            setPasswordProtected(
-                                                event.target.checked
-                                            )
-                                    }
-                                />
-
-                                <span>
-                                    Password protect this URL
-                                </span>
-
-                            </label>
-
-                            <small className="form-help">
-                                Visitors will need a password
-                                before accessing the destination.
-                            </small>
-
-                        </div>
-
-
-                        {/* Password */}
-
-                        {passwordProtected && (
-
-                            <div className="form-group">
-
-                                <label htmlFor="urlPassword">
-                                    Password
-                                </label>
-
-                                <input
-                                    id="urlPassword"
-                                    type="password"
-                                    value={password}
-                                    onChange={
-                                        event =>
-                                            setPassword(
-                                                event.target.value
-                                            )
-                                    }
-                                    placeholder="Enter a password"
-                                    minLength={4}
-                                    maxLength={100}
-                                    required
-                                />
-
-                                <small className="form-help">
-                                    Minimum 4 characters.
-                                </small>
-
+                            <div className="dashboard-error-box">
+                                {createError}
                             </div>
 
                         )}
 
 
-                        <button
-                            type="submit"
-                            className="dashboard-primary-button"
-                            disabled={creating}
+                        <form
+                            className="create-url-form"
+                            onSubmit={handleCreate}
                         >
-                            {creating
-                                ? "Creating..."
-                                : "Create short link"}
-                        </button>
 
-                    </form>
 
-                </section>
+                            {/* Original URL */}
+
+                            <div className="form-group">
+
+                                <label htmlFor="originalUrl">
+                                    Original URL
+                                </label>
+
+                                <input
+                                    id="originalUrl"
+                                    type="url"
+                                    value={originalUrl}
+                                    onChange={
+                                        event =>
+                                            setOriginalUrl(
+                                                event.target.value
+                                            )
+                                    }
+                                    placeholder="https://example.com"
+                                    required
+                                />
+
+                            </div>
+
+
+                            {/* Custom Alias */}
+
+                            <div className="form-group">
+
+                                <label htmlFor="customAlias">
+
+                                    Custom alias
+
+                                    <span>
+                                        {" "}Optional
+                                    </span>
+
+                                </label>
+
+                                <input
+                                    id="customAlias"
+                                    type="text"
+                                    value={customAlias}
+                                    onChange={
+                                        event =>
+                                            setCustomAlias(
+                                                event.target.value
+                                            )
+                                    }
+                                    placeholder="my-link"
+                                    minLength={3}
+                                    maxLength={30}
+                                    pattern="[a-zA-Z0-9_-]+"
+                                />
+
+                            </div>
+
+
+                            {/* Expiration */}
+
+                            <div className="form-group">
+
+                                <label htmlFor="expiresAt">
+
+                                    Expiration
+
+                                    <span>
+                                        {" "}Optional
+                                    </span>
+
+                                </label>
+
+                                <input
+                                    id="expiresAt"
+                                    type="datetime-local"
+                                    value={expiresAt}
+                                    onChange={
+                                        event =>
+                                            setExpiresAt(
+                                                event.target.value
+                                            )
+                                    }
+                                />
+
+                            </div>
+
+
+                            {/* Password Protection */}
+
+                            <div className="form-group">
+
+                                <label className="checkbox-label">
+
+                                    <input
+                                        type="checkbox"
+                                        checked={
+                                            passwordProtected
+                                        }
+                                        onChange={
+                                            event =>
+                                                setPasswordProtected(
+                                                    event.target.checked
+                                                )
+                                        }
+                                    />
+
+                                    <span>
+                                        Password protect this URL
+                                    </span>
+
+                                </label>
+
+                                <small className="form-help">
+                                    Visitors will need a password
+                                    before accessing the destination.
+                                </small>
+
+                            </div>
+
+
+                            {/* Password */}
+
+                            {passwordProtected && (
+
+                                <div className="form-group">
+
+                                    <label htmlFor="urlPassword">
+                                        Password
+                                    </label>
+
+                                    <input
+                                        id="urlPassword"
+                                        type="password"
+                                        value={password}
+                                        onChange={
+                                            event =>
+                                                setPassword(
+                                                    event.target.value
+                                                )
+                                        }
+                                        placeholder="Enter a password"
+                                        minLength={4}
+                                        maxLength={100}
+                                        required
+                                    />
+
+                                    <small className="form-help">
+                                        Minimum 4 characters.
+                                    </small>
+
+                                </div>
+
+                            )}
+
+
+                            <button
+                                type="submit"
+                                className="dashboard-primary-button"
+                                disabled={creating}
+                            >
+                                {creating
+                                    ? "Creating..."
+                                    : "Create short link"}
+                            </button>
+
+                        </form>
+
+                    </section>
+
+
+                    {/* Mobile Cancel Button */}
+
+                    <button
+                        type="button"
+                        className="dashboard-primary-button create-link-mobile-cancel"
+                        onClick={() =>
+                            setShowCreateForm(false)
+                        }
+                    >
+                        Cancel
+                    </button>
+
+                </>
 
             )}
 
