@@ -30,6 +30,7 @@ const {
     apiLimiter
 } = require("./middleware/rateLimit.middleware");
 
+const helmet = require("helmet");
 
 const app = express();
 
@@ -40,10 +41,6 @@ const app = express();
  * Required when the application is
  * deployed behind a proxy/load balancer.
  */
-app.set(
-    "trust proxy",
-    1
-);
 
 
 /*
@@ -51,6 +48,20 @@ app.set(
  * Middlewares
  * =========================
  */
+
+app.use(logger);
+
+app.set(
+    "trust proxy",
+    1
+);
+
+app.use(
+    helmet({
+        strictTransportSecurity:
+            process.env.NODE_ENV === "production"
+    })
+);
 
 app.use(logger);
 
@@ -62,7 +73,6 @@ app.use(
     cors({
         origin:
             "http://localhost:3000",
-
         credentials: true
     })
 );
@@ -70,7 +80,6 @@ app.use(
 app.use(
     cookieParser()
 );
-
 
 /*
  * =========================
