@@ -5,15 +5,33 @@ import {
 } from "react";
 
 import {
+    useLocation,
+    useNavigate
+} from "react-router-dom";
+
+import {
     getUrls,
     createUrl,
-    updateUrl
+    updateUrl,
+    requestDeleteUrl,
+    restoreDeletedUrl
 } from "../../api/url.api";
 
 
 function MyUrls() {
 
-    const [urls, setUrls] = useState([]);
+    const location = useLocation();
+    const navigate = useNavigate();
+
+
+    /*
+     * =========================
+     * URL list state
+     * =========================
+     */
+
+    const [urls, setUrls] =
+        useState([]);
 
     const [loading, setLoading] =
         useState(true);
@@ -23,11 +41,39 @@ function MyUrls() {
 
 
     /*
+     * =========================
+     * Pagination state
+     * =========================
+     */
+
+    const [currentPage, setCurrentPage] =
+        useState(1);
+
+    const [totalUrls, setTotalUrls] =
+        useState(0);
+
+    const pageSize = 10;
+
+
+    const totalPages =
+        Math.max(
+            Math.ceil(
+                totalUrls / pageSize
+            ),
+            1
+        );
+
+
+    /*
+     * =========================
      * Create URL state
+     * =========================
      */
 
     const [showCreateForm, setShowCreateForm] =
-        useState(false);
+        useState(
+            location.state?.openCreateForm === true
+        );
 
     const [creating, setCreating] =
         useState(false);
@@ -44,9 +90,17 @@ function MyUrls() {
     const [expiresAt, setExpiresAt] =
         useState("");
 
+    const [passwordProtected, setPasswordProtected] =
+        useState(false);
+
+    const [password, setPassword] =
+        useState("");
+
 
     /*
+     * =========================
      * Edit URL state
+     * =========================
      */
 
     const [editingUrl, setEditingUrl] =
@@ -66,10 +120,41 @@ function MyUrls() {
 
 
     /*
-     * Load URLs
+     * =========================
+     * Handle navigation
+     * =========================
      */
 
-    async function loadUrls() {
+    useEffect(() => {
+
+        if (location.state?.openCreateForm) {
+
+            setShowCreateForm(true);
+
+            navigate(
+                location.pathname,
+                {
+                    replace: true,
+                    state: {}
+                }
+            );
+        }
+
+    }, [
+        location,
+        navigate
+    ]);
+
+
+    /*
+     * =========================
+     * Load URLs
+     * =========================
+     */
+
+    async function loadUrls(
+        requestedPage = currentPage
+    ) {
 
         try {
 
@@ -77,10 +162,28 @@ function MyUrls() {
             setError("");
 
             const response =
-                await getUrls(1, 100);
+                await getUrls(
+                    requestedPage,
+                    pageSize
+                );
+
+
+            const data =
+                response.data;
+
 
             setUrls(
-                response.data.urls
+                Array.isArray(data.urls)
+                    ? data.urls
+                    : []
+            );
+
+            setTotalUrls(
+                data.total || 0
+            );
+
+            setCurrentPage(
+                data.page || requestedPage
             );
 
         } catch (error) {
@@ -105,16 +208,44 @@ function MyUrls() {
 
     useEffect(() => {
 
-        loadUrls();
+        loadUrls(1);
 
     }, []);
 
 
     /*
-     * Create URL
+     * =========================
+     * Pagination
+     * =========================
      */
 
-    async function handleCreate(event) {
+    async function handlePageChange(
+        page
+    ) {
+
+        if (
+            page < 1 ||
+            page > totalPages ||
+            page === currentPage
+        ) {
+            return;
+        }
+
+        setEditingUrl(null);
+
+        await loadUrls(page);
+    }
+
+
+    /*
+     * =========================
+     * Create URL
+     * =========================
+     */
+
+    async function handleCreate(
+        event
+    ) {
 
         event.preventDefault();
 
@@ -123,37 +254,45 @@ function MyUrls() {
 
         try {
 
-            const response =
-                await createUrl({
-                    originalUrl,
+            await createUrl({
 
-                    customAlias:
-                        customAlias.trim() ||
-                        undefined,
+                originalUrl,
 
-                    expiresAt:
-                        expiresAt ||
-                        undefined
-                });
+                customAlias:
+                    customAlias.trim() ||
+                    undefined,
 
+                expiresAt:
+                    expiresAt ||
+                    undefined,
 
-            setUrls(
-                previousUrls => [
-                    response.data,
-                    ...previousUrls
-                ]
-            );
+                password:
+                    passwordProtected
+                        ? password
+                        : undefined
+
+            });
 
 
             /*
-             * Clear form
+             * Reset form
              */
 
             setOriginalUrl("");
             setCustomAlias("");
             setExpiresAt("");
+            setPassword("");
+            setPasswordProtected(false);
 
             setShowCreateForm(false);
+
+
+            /*
+             * New URLs are created at
+             * the beginning of page 1.
+             */
+
+            await loadUrls(1);
 
         } catch (error) {
 
@@ -176,10 +315,23 @@ function MyUrls() {
 
 
     /*
-     * Start editing a URL
+     * =========================
+     * Start editing URL
+     * =========================
      */
 
     function handleEdit(url) {
+
+        /*
+         * Backend does not allow
+         * modification while deletion
+         * is pending.
+         */
+
+        if (url.deletionRequestedAt) {
+            return;
+        }
+
 
         setEditingUrl(url);
 
@@ -187,12 +339,6 @@ function MyUrls() {
             url.originalUrl
         );
 
-
-        /*
-         * Convert ISO date returned
-         * by backend into the format
-         * required by datetime-local.
-         */
 
         setEditExpiresAt(
             url.expiresAt
@@ -207,7 +353,9 @@ function MyUrls() {
 
 
     /*
+     * =========================
      * Cancel editing
+     * =========================
      */
 
     function handleCancelEdit() {
@@ -222,10 +370,14 @@ function MyUrls() {
 
 
     /*
+     * =========================
      * Save edited URL
+     * =========================
      */
 
-    async function handleSaveEdit(event) {
+    async function handleSaveEdit(
+        event
+    ) {
 
         event.preventDefault();
 
@@ -252,25 +404,17 @@ function MyUrls() {
                 );
 
 
-            /*
-             * Replace the updated URL
-             * inside the current list.
-             */
-
             setUrls(
                 previousUrls =>
                     previousUrls.map(
                         url =>
-                            url.id === editingUrl.id
+                            url.id ===
+                            editingUrl.id
                                 ? response.data
                                 : url
                     )
             );
 
-
-            /*
-             * Close edit mode.
-             */
 
             handleCancelEdit();
 
@@ -295,10 +439,24 @@ function MyUrls() {
 
 
     /*
-     * Activate / Deactivate URL
+     * =========================
+     * Activate / Deactivate
+     * =========================
      */
 
-    async function handleToggle(url) {
+    async function handleToggle(
+        url
+    ) {
+
+        /*
+         * Do not allow toggling a URL
+         * that is pending deletion.
+         */
+
+        if (url.deletionRequestedAt) {
+            return;
+        }
+
 
         try {
 
@@ -316,7 +474,8 @@ function MyUrls() {
                 previousUrls =>
                     previousUrls.map(
                         currentUrl =>
-                            currentUrl.id === url.id
+                            currentUrl.id ===
+                            url.id
                                 ? response.data
                                 : currentUrl
                     )
@@ -338,10 +497,142 @@ function MyUrls() {
 
 
     /*
-     * Copy short URL
+     * =========================
+     * Delete URL
+     * =========================
      */
 
-    async function handleCopy(url) {
+    async function handleDelete(
+        url
+    ) {
+
+        const confirmed =
+            window.confirm(
+                "Delete this URL?\n\n" +
+                "The URL will be deactivated immediately " +
+                "and permanently deleted after 30 days."
+            );
+
+
+        if (!confirmed) {
+            return;
+        }
+
+
+        try {
+
+            const response =
+                await requestDeleteUrl(
+                    url.id
+                );
+
+
+            setUrls(
+                previousUrls =>
+                    previousUrls.map(
+                        currentUrl =>
+                            currentUrl.id ===
+                            url.id
+                                ? {
+                                    ...currentUrl,
+
+                                    isActive:
+                                        response.data
+                                            .isActive,
+
+                                    deletionRequestedAt:
+                                        response.data
+                                            .deletionRequestedAt
+                                }
+                                : currentUrl
+                    )
+            );
+
+
+            if (
+                editingUrl?.id === url.id
+            ) {
+                handleCancelEdit();
+            }
+
+        } catch (error) {
+
+            console.error(
+                "Failed to delete URL:",
+                error
+            );
+
+            setError(
+                error.response?.data?.message ||
+                "Unable to delete URL."
+            );
+        }
+    }
+
+
+    /*
+     * =========================
+     * Restore URL
+     * =========================
+     */
+
+    async function handleRestore(
+        url
+    ) {
+
+        try {
+
+            const response =
+                await restoreDeletedUrl(
+                    url.id
+                );
+
+
+            setUrls(
+                previousUrls =>
+                    previousUrls.map(
+                        currentUrl =>
+                            currentUrl.id ===
+                            url.id
+                                ? {
+                                    ...currentUrl,
+
+                                    isActive:
+                                        response.data
+                                            .isActive,
+
+                                    deletionRequestedAt:
+                                        response.data
+                                            .deletionRequestedAt
+                                }
+                                : currentUrl
+                    )
+            );
+
+        } catch (error) {
+
+            console.error(
+                "Failed to restore URL:",
+                error
+            );
+
+            setError(
+                error.response?.data?.message ||
+                "Unable to restore URL."
+            );
+        }
+    }
+
+
+    /*
+     * =========================
+     * Copy short URL
+     * =========================
+     */
+
+    async function handleCopy(
+        url
+    ) {
 
         try {
 
@@ -360,7 +651,9 @@ function MyUrls() {
 
 
     /*
+     * =========================
      * Loading state
+     * =========================
      */
 
     if (loading) {
@@ -370,27 +663,32 @@ function MyUrls() {
                 Loading your URLs...
             </div>
         );
-
     }
 
 
     /*
+     * =========================
      * Error state
+     * =========================
      */
 
-    if (error && urls.length === 0) {
+    if (
+        error &&
+        urls.length === 0
+    ) {
 
         return (
             <div className="dashboard-state dashboard-error">
                 {error}
             </div>
         );
-
     }
 
 
     return (
+
         <div className="dashboard-page">
+
 
             {/* =========================
                 Page Header
@@ -417,6 +715,7 @@ function MyUrls() {
 
 
                 <button
+                    type="button"
                     className="dashboard-primary-button"
                     onClick={() =>
                         setShowCreateForm(
@@ -469,6 +768,9 @@ function MyUrls() {
                         onSubmit={handleCreate}
                     >
 
+
+                        {/* Original URL */}
+
                         <div className="form-group">
 
                             <label htmlFor="originalUrl">
@@ -479,10 +781,11 @@ function MyUrls() {
                                 id="originalUrl"
                                 type="url"
                                 value={originalUrl}
-                                onChange={event =>
-                                    setOriginalUrl(
-                                        event.target.value
-                                    )
+                                onChange={
+                                    event =>
+                                        setOriginalUrl(
+                                            event.target.value
+                                        )
                                 }
                                 placeholder="https://example.com"
                                 required
@@ -490,6 +793,8 @@ function MyUrls() {
 
                         </div>
 
+
+                        {/* Custom Alias */}
 
                         <div className="form-group">
 
@@ -507,10 +812,11 @@ function MyUrls() {
                                 id="customAlias"
                                 type="text"
                                 value={customAlias}
-                                onChange={event =>
-                                    setCustomAlias(
-                                        event.target.value
-                                    )
+                                onChange={
+                                    event =>
+                                        setCustomAlias(
+                                            event.target.value
+                                        )
                                 }
                                 placeholder="my-link"
                                 minLength={3}
@@ -520,6 +826,8 @@ function MyUrls() {
 
                         </div>
 
+
+                        {/* Expiration */}
 
                         <div className="form-group">
 
@@ -537,14 +845,83 @@ function MyUrls() {
                                 id="expiresAt"
                                 type="datetime-local"
                                 value={expiresAt}
-                                onChange={event =>
-                                    setExpiresAt(
-                                        event.target.value
-                                    )
+                                onChange={
+                                    event =>
+                                        setExpiresAt(
+                                            event.target.value
+                                        )
                                 }
                             />
 
                         </div>
+
+
+                        {/* Password Protection */}
+
+                        <div className="form-group">
+
+                            <label className="checkbox-label">
+
+                                <input
+                                    type="checkbox"
+                                    checked={
+                                        passwordProtected
+                                    }
+                                    onChange={
+                                        event =>
+                                            setPasswordProtected(
+                                                event.target.checked
+                                            )
+                                    }
+                                />
+
+                                <span>
+                                    Password protect this URL
+                                </span>
+
+                            </label>
+
+                            <small className="form-help">
+                                Visitors will need a password
+                                before accessing the destination.
+                            </small>
+
+                        </div>
+
+
+                        {/* Password */}
+
+                        {passwordProtected && (
+
+                            <div className="form-group">
+
+                                <label htmlFor="urlPassword">
+                                    Password
+                                </label>
+
+                                <input
+                                    id="urlPassword"
+                                    type="password"
+                                    value={password}
+                                    onChange={
+                                        event =>
+                                            setPassword(
+                                                event.target.value
+                                            )
+                                    }
+                                    placeholder="Enter a password"
+                                    minLength={4}
+                                    maxLength={100}
+                                    required
+                                />
+
+                                <small className="form-help">
+                                    Minimum 4 characters.
+                                </small>
+
+                            </div>
+
+                        )}
 
 
                         <button
@@ -579,8 +956,8 @@ function MyUrls() {
                         </h2>
 
                         <p>
-                            {urls.length} link
-                            {urls.length !== 1
+                            {totalUrls} link
+                            {totalUrls !== 1
                                 ? "s"
                                 : ""}
                         </p>
@@ -607,305 +984,455 @@ function MyUrls() {
 
                 ) : (
 
-                    <div className="url-table-wrapper">
-
-                        <table className="url-table">
-
-                            <thead>
-
-                                <tr>
-
-                                    <th>
-                                        Short URL
-                                    </th>
-
-                                    <th>
-                                        Destination
-                                    </th>
-
-                                    <th>
-                                        Status
-                                    </th>
-
-                                    <th>
-                                        Expires
-                                    </th>
-
-                                    <th>
-                                        Actions
-                                    </th>
-
-                                </tr>
-
-                            </thead>
+                    <>
 
 
-                            <tbody>
+                        {/* =========================
+                            URL Table
+                           ========================= */}
 
-                                {urls.map(url => (
+                        <div className="url-table-wrapper">
 
-                                    <Fragment key={url.id}>
+                            <table className="url-table">
 
-                                        {/* =========================
-                                            Edit Row
-                                           ========================= */}
+                                <thead>
 
-                                        {editingUrl?.id === url.id && (
+                                    <tr>
 
-                                            <tr className="edit-url-row">
+                                        <th>
+                                            Short URL
+                                        </th>
 
-                                                <td colSpan="5">
+                                        <th>
+                                            Destination
+                                        </th>
 
-                                                    <form
-                                                        className="edit-url-form"
-                                                        onSubmit={
-                                                            handleSaveEdit
-                                                        }
-                                                    >
+                                        <th>
+                                            Status
+                                        </th>
 
-                                                        <div className="edit-url-header">
+                                        <th>
+                                            Expires
+                                        </th>
 
-                                                            <div>
+                                        <th>
+                                            Actions
+                                        </th>
 
-                                                                <h3>
-                                                                    Edit link
-                                                                </h3>
+                                    </tr>
 
-                                                                <p>
-                                                                    {url.shortUrl}
-                                                                </p>
+                                </thead>
 
-                                                            </div>
 
+                                <tbody>
+
+                                    {urls.map(
+                                        url => (
+
+                                            <Fragment
+                                                key={url.id}
+                                            >
+
+
+                                                {/* =========================
+                                                    Edit Row
+                                                   ========================= */}
+
+                                                {editingUrl?.id ===
+                                                    url.id && (
+
+                                                    <tr className="edit-url-row">
+
+                                                        <td colSpan="5">
+
+                                                            <form
+                                                                className="edit-url-form"
+                                                                onSubmit={
+                                                                    handleSaveEdit
+                                                                }
+                                                            >
+
+                                                                <div className="edit-url-header">
+
+                                                                    <div>
+
+                                                                        <h3>
+                                                                            Edit link
+                                                                        </h3>
+
+                                                                        <p>
+                                                                            {url.shortUrl}
+                                                                        </p>
+
+                                                                    </div>
+
+
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={
+                                                                            handleCancelEdit
+                                                                        }
+                                                                    >
+                                                                        Cancel
+                                                                    </button>
+
+                                                                </div>
+
+
+                                                                {editError && (
+
+                                                                    <div className="dashboard-error-box">
+                                                                        {editError}
+                                                                    </div>
+
+                                                                )}
+
+
+                                                                <div className="edit-url-fields">
+
+                                                                    <div className="form-group">
+
+                                                                        <label
+                                                                            htmlFor={`edit-url-${url.id}`}
+                                                                        >
+                                                                            Original URL
+                                                                        </label>
+
+                                                                        <input
+                                                                            id={`edit-url-${url.id}`}
+                                                                            type="url"
+                                                                            value={
+                                                                                editOriginalUrl
+                                                                            }
+                                                                            onChange={
+                                                                                event =>
+                                                                                    setEditOriginalUrl(
+                                                                                        event.target.value
+                                                                                    )
+                                                                            }
+                                                                            required
+                                                                        />
+
+                                                                    </div>
+
+
+                                                                    <div className="form-group">
+
+                                                                        <label
+                                                                            htmlFor={`edit-expiry-${url.id}`}
+                                                                        >
+
+                                                                            Expiration
+
+                                                                            <span>
+                                                                                {" "}Optional
+                                                                            </span>
+
+                                                                        </label>
+
+                                                                        <input
+                                                                            id={`edit-expiry-${url.id}`}
+                                                                            type="datetime-local"
+                                                                            value={
+                                                                                editExpiresAt
+                                                                            }
+                                                                            onChange={
+                                                                                event =>
+                                                                                    setEditExpiresAt(
+                                                                                        event.target.value
+                                                                                    )
+                                                                            }
+                                                                        />
+
+                                                                    </div>
+
+                                                                </div>
+
+
+                                                                <div className="edit-url-actions">
+
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={
+                                                                            handleCancelEdit
+                                                                        }
+                                                                    >
+                                                                        Cancel
+                                                                    </button>
+
+
+                                                                    <button
+                                                                        type="submit"
+                                                                        className="dashboard-primary-button"
+                                                                        disabled={
+                                                                            updating
+                                                                        }
+                                                                    >
+                                                                        {updating
+                                                                            ? "Saving..."
+                                                                            : "Save changes"}
+                                                                    </button>
+
+                                                                </div>
+
+                                                            </form>
+
+                                                        </td>
+
+                                                    </tr>
+
+                                                )}
+
+
+                                                {/* =========================
+                                                    URL Row
+                                                   ========================= */}
+
+                                                <tr>
+
+                                                    {/* Short URL */}
+
+                                                    <td>
+
+                                                        <div className="short-url-cell">
+
+                                                            <strong>
+                                                                {url.shortCode}
+                                                            </strong>
+
+
+                                                            {url.isPasswordProtected && (
+
+                                                                <span className="url-protected-badge">
+                                                                    Protected
+                                                                </span>
+
+                                                            )}
+
+                                                        </div>
+
+                                                    </td>
+
+
+                                                    {/* Destination */}
+
+                                                    <td>
+
+                                                        <span className="destination-url">
+                                                            {url.originalUrl}
+                                                        </span>
+
+                                                    </td>
+
+
+                                                    {/* Status */}
+
+                                                    <td>
+
+                                                        <span
+                                                            className={
+                                                                url.deletionRequestedAt
+                                                                    ? "url-status pending"
+                                                                    : url.isActive
+                                                                        ? "url-status active"
+                                                                        : "url-status inactive"
+                                                            }
+                                                        >
+
+                                                            {url.deletionRequestedAt
+                                                                ? "Pending deletion"
+                                                                : url.isActive
+                                                                    ? "Active"
+                                                                    : "Inactive"}
+
+                                                        </span>
+
+                                                    </td>
+
+
+                                                    {/* Expiration */}
+
+                                                    <td>
+
+                                                        {url.expiresAt
+                                                            ? new Date(
+                                                                url.expiresAt
+                                                            ).toLocaleDateString()
+                                                            : "Never"}
+
+                                                    </td>
+
+
+                                                    {/* Actions */}
+
+                                                    <td>
+
+                                                        <div className="url-actions">
+
+
+                                                            {/* Copy */}
 
                                                             <button
                                                                 type="button"
-                                                                onClick={
-                                                                    handleCancelEdit
+                                                                onClick={() =>
+                                                                    handleCopy(
+                                                                        url
+                                                                    )
                                                                 }
                                                             >
-                                                                Cancel
+                                                                Copy
                                                             </button>
 
-                                                        </div>
 
+                                                            {!url.deletionRequestedAt && (
 
-                                                        {editError && (
+                                                                <>
 
-                                                            <div className="dashboard-error-box">
-                                                                {editError}
-                                                            </div>
+                                                                    {/* Edit */}
 
-                                                        )}
-
-
-                                                        <div className="edit-url-fields">
-
-                                                            <div className="form-group">
-
-                                                                <label
-                                                                    htmlFor={`edit-url-${url.id}`}
-                                                                >
-                                                                    Original URL
-                                                                </label>
-
-                                                                <input
-                                                                    id={`edit-url-${url.id}`}
-                                                                    type="url"
-                                                                    value={
-                                                                        editOriginalUrl
-                                                                    }
-                                                                    onChange={
-                                                                        event =>
-                                                                            setEditOriginalUrl(
-                                                                                event.target.value
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() =>
+                                                                            handleEdit(
+                                                                                url
                                                                             )
-                                                                    }
-                                                                    required
-                                                                />
+                                                                        }
+                                                                    >
+                                                                        Edit
+                                                                    </button>
 
-                                                            </div>
 
+                                                                    {/* Activate / Deactivate */}
 
-                                                            <div className="form-group">
-
-                                                                <label
-                                                                    htmlFor={`edit-expiry-${url.id}`}
-                                                                >
-                                                                    Expiration
-
-                                                                    <span>
-                                                                        {" "}Optional
-                                                                    </span>
-
-                                                                </label>
-
-                                                                <input
-                                                                    id={`edit-expiry-${url.id}`}
-                                                                    type="datetime-local"
-                                                                    value={
-                                                                        editExpiresAt
-                                                                    }
-                                                                    onChange={
-                                                                        event =>
-                                                                            setEditExpiresAt(
-                                                                                event.target.value
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() =>
+                                                                            handleToggle(
+                                                                                url
                                                                             )
+                                                                        }
+                                                                    >
+                                                                        {url.isActive
+                                                                            ? "Deactivate"
+                                                                            : "Activate"}
+                                                                    </button>
+
+
+                                                                    {/* Delete */}
+
+                                                                    <button
+                                                                        type="button"
+                                                                        className="url-delete-button"
+                                                                        onClick={() =>
+                                                                            handleDelete(
+                                                                                url
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        Delete
+                                                                    </button>
+
+                                                                </>
+
+                                                            )}
+
+
+                                                            {url.deletionRequestedAt && (
+
+                                                                <button
+                                                                    type="button"
+                                                                    className="url-restore-button"
+                                                                    onClick={() =>
+                                                                        handleRestore(
+                                                                            url
+                                                                        )
                                                                     }
-                                                                />
+                                                                >
+                                                                    Restore
+                                                                </button>
 
-                                                            </div>
-
-                                                        </div>
-
-
-                                                        <div className="edit-url-actions">
-
-                                                            <button
-                                                                type="button"
-                                                                onClick={
-                                                                    handleCancelEdit
-                                                                }
-                                                            >
-                                                                Cancel
-                                                            </button>
-
-
-                                                            <button
-                                                                type="submit"
-                                                                className="dashboard-primary-button"
-                                                                disabled={
-                                                                    updating
-                                                                }
-                                                            >
-                                                                {updating
-                                                                    ? "Saving..."
-                                                                    : "Save changes"}
-                                                            </button>
+                                                            )}
 
                                                         </div>
 
-                                                    </form>
+                                                    </td>
 
-                                                </td>
+                                                </tr>
 
-                                            </tr>
+                                            </Fragment>
 
-                                        )}
+                                        )
+                                    )}
 
+                                </tbody>
 
-                                        {/* =========================
-                                            URL Row
-                                           ========================= */}
+                            </table>
 
-                                        <tr>
-
-                                            <td>
-
-                                                <div className="short-url-cell">
-
-                                                    <strong>
-                                                        {url.shortCode}
-                                                    </strong>
-
-                                                </div>
-
-                                            </td>
+                        </div>
 
 
-                                            <td>
+                        {/* =========================
+                            Pagination
+                           ========================= */}
 
-                                                <span className="destination-url">
-                                                    {url.originalUrl}
-                                                </span>
+                        {totalPages > 1 && (
 
-                                            </td>
+                            <div className="url-pagination">
 
-
-                                            <td>
-
-                                                <span
-                                                    className={
-                                                        url.isActive
-                                                            ? "url-status active"
-                                                            : "url-status inactive"
-                                                    }
-                                                >
-                                                    {url.isActive
-                                                        ? "Active"
-                                                        : "Inactive"}
-                                                </span>
-
-                                            </td>
+                                <button
+                                    type="button"
+                                    className="pagination-button"
+                                    disabled={
+                                        currentPage === 1
+                                    }
+                                    onClick={() =>
+                                        handlePageChange(
+                                            currentPage - 1
+                                        )
+                                    }
+                                >
+                                    Previous
+                                </button>
 
 
-                                            <td>
+                                <div className="pagination-info">
 
-                                                {url.expiresAt
-                                                    ? new Date(
-                                                        url.expiresAt
-                                                    ).toLocaleDateString()
-                                                    : "Never"}
+                                    Page{" "}
 
-                                            </td>
+                                    <strong>
+                                        {currentPage}
+                                    </strong>
 
+                                    {" "}of{" "}
 
-                                            <td>
+                                    <strong>
+                                        {totalPages}
+                                    </strong>
 
-                                                <div className="url-actions">
-
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            handleCopy(
-                                                                url
-                                                            )
-                                                        }
-                                                    >
-                                                        Copy
-                                                    </button>
+                                </div>
 
 
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            handleEdit(
-                                                                url
-                                                            )
-                                                        }
-                                                    >
-                                                        Edit
-                                                    </button>
+                                <button
+                                    type="button"
+                                    className="pagination-button"
+                                    disabled={
+                                        currentPage ===
+                                        totalPages
+                                    }
+                                    onClick={() =>
+                                        handlePageChange(
+                                            currentPage + 1
+                                        )
+                                    }
+                                >
+                                    Next
+                                </button>
 
+                            </div>
 
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            handleToggle(
-                                                                url
-                                                            )
-                                                        }
-                                                    >
-                                                        {url.isActive
-                                                            ? "Deactivate"
-                                                            : "Activate"}
-                                                    </button>
+                        )}
 
-                                                </div>
-
-                                            </td>
-
-                                        </tr>
-
-                                    </Fragment>
-
-                                ))}
-
-                            </tbody>
-
-                        </table>
-
-                    </div>
+                    </>
 
                 )}
 

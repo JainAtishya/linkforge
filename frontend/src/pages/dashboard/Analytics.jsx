@@ -1,4 +1,18 @@
-import { useEffect, useState } from "react";
+import {
+    useEffect,
+    useRef,
+    useState
+} from "react";
+
+import {
+    ResponsiveContainer,
+    LineChart,
+    Line,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip
+} from "recharts";
 
 import {
     getUrls,
@@ -7,12 +21,47 @@ import {
 } from "../../api/url.api";
 
 
+const URLS_PER_PAGE = 10;
+
+
 function Analytics() {
 
-    const [urls, setUrls] = useState([]);
+    /*
+     * =========================
+     * URLs
+     * =========================
+     */
+
+    const [urls, setUrls] =
+        useState([]);
+
+    const [urlPage, setUrlPage] =
+        useState(1);
+
+    const [hasMoreUrls, setHasMoreUrls] =
+        useState(true);
+
+    const [loadingUrls, setLoadingUrls] =
+        useState(true);
+
+    const [loadingMoreUrls, setLoadingMoreUrls] =
+        useState(false);
 
     const [selectedUrlId, setSelectedUrlId] =
         useState("");
+
+    const [urlSearch, setUrlSearch] =
+        useState("");
+
+    const [selectorOpen, setSelectorOpen] =
+        useState(false);
+
+
+    /*
+     * =========================
+     * Analytics
+     * =========================
+     */
 
     const [period, setPeriod] =
         useState("7d");
@@ -20,57 +69,82 @@ function Analytics() {
     const [analytics, setAnalytics] =
         useState(null);
 
+    const [analyticsLoading, setAnalyticsLoading] =
+        useState(false);
+
+    const [error, setError] =
+        useState("");
+
+
+    /*
+     * =========================
+     * Date analytics
+     * =========================
+     */
+
     const [selectedDate, setSelectedDate] =
         useState("");
 
     const [dateAnalytics, setDateAnalytics] =
         useState(null);
 
-    const [loading, setLoading] =
-        useState(true);
-
-    const [analyticsLoading, setAnalyticsLoading] =
-        useState(false);
-
     const [dateLoading, setDateLoading] =
         useState(false);
-
-    const [error, setError] =
-        useState("");
 
     const [dateError, setDateError] =
         useState("");
 
 
     /*
-     * Load user's URLs
+     * =========================
+     * Refs
+     * =========================
      */
 
-    async function loadUrls() {
+    const selectorRef =
+        useRef(null);
+
+
+    /*
+     * =========================
+     * Load first page
+     * =========================
+     */
+
+    async function loadInitialUrls() {
 
         try {
 
-            setLoading(true);
+            setLoadingUrls(true);
             setError("");
 
             const response =
-                await getUrls(1, 100);
+                await getUrls(
+                    1,
+                    URLS_PER_PAGE
+                );
 
-            const userUrls =
-                response.data.urls;
+            const fetchedUrls =
+                Array.isArray(
+                    response?.data?.urls
+                )
+                    ? response.data.urls
+                    : [];
 
-            setUrls(userUrls);
+            setUrls(fetchedUrls);
+            setUrlPage(1);
 
+            const total =
+                response?.data?.total || 0;
 
-            /*
-             * Automatically select
-             * the first URL.
-             */
+            setHasMoreUrls(
+                fetchedUrls.length < total
+            );
 
-            if (userUrls.length > 0) {
+            if (fetchedUrls.length > 0) {
 
                 setSelectedUrlId(
-                    userUrls[0].id
+                    fetchedUrls[0].id
                 );
 
             }
@@ -89,7 +163,7 @@ function Analytics() {
 
         } finally {
 
-            setLoading(false);
+            setLoadingUrls(false);
 
         }
     }
@@ -97,14 +171,167 @@ function Analytics() {
 
     useEffect(() => {
 
-        loadUrls();
+        loadInitialUrls();
 
     }, []);
 
 
     /*
-     * Load analytics whenever
-     * selected URL or period changes.
+     * =========================
+     * Load more URLs
+     * =========================
+     */
+
+    async function loadMoreUrls() {
+
+        if (
+            loadingMoreUrls ||
+            !hasMoreUrls
+        ) {
+            return;
+        }
+
+        try {
+
+            setLoadingMoreUrls(true);
+
+            const nextPage =
+                urlPage + 1;
+
+            const response =
+                await getUrls(
+                    nextPage,
+                    URLS_PER_PAGE
+                );
+
+            const newUrls =
+                Array.isArray(
+                    response?.data?.urls
+                )
+                    ? response.data.urls
+                    : [];
+
+            setUrls(previousUrls => {
+
+                const existingIds =
+                    new Set(
+                        previousUrls.map(
+                            url => url.id
+                        )
+                    );
+
+                const uniqueUrls =
+                    newUrls.filter(
+                        url =>
+                            !existingIds.has(
+                                url.id
+                            )
+                    );
+
+                return [
+                    ...previousUrls,
+                    ...uniqueUrls
+                ];
+            });
+
+            setUrlPage(nextPage);
+
+            const total =
+                response?.data?.total || 0;
+
+            setHasMoreUrls(
+                (
+                    urls.length +
+                    newUrls.length
+                ) < total
+            );
+
+        } catch (error) {
+
+            console.error(
+                "Failed to load more URLs:",
+                error
+            );
+
+        } finally {
+
+            setLoadingMoreUrls(false);
+
+        }
+    }
+
+
+    /*
+     * =========================
+     * Selector scroll
+     * =========================
+     */
+
+    function handleSelectorScroll(event) {
+
+        const element =
+            event.currentTarget;
+
+        const reachedBottom =
+            element.scrollTop +
+            element.clientHeight >=
+            element.scrollHeight - 30;
+
+        if (reachedBottom) {
+
+            loadMoreUrls();
+
+        }
+    }
+
+
+    /*
+     * =========================
+     * Search
+     * =========================
+     */
+
+    const filteredUrls =
+        urls.filter(url => {
+
+            const search =
+                urlSearch
+                    .trim()
+                    .toLowerCase();
+
+            if (!search) {
+                return true;
+            }
+
+            return (
+                url.shortCode
+                    ?.toLowerCase()
+                    .includes(search) ||
+
+                url.originalUrl
+                    ?.toLowerCase()
+                    .includes(search)
+            );
+        });
+
+
+    /*
+     * =========================
+     * Selected URL
+     * =========================
+     */
+
+    const selectedUrl =
+        urls.find(
+            url =>
+                url.id === selectedUrlId
+        );
+
+
+    /*
+     * =========================
+     * Analytics
+     * =========================
      */
 
     async function loadAnalytics() {
@@ -125,7 +352,7 @@ function Analytics() {
                 );
 
             setAnalytics(
-                response.data
+                response?.data || null
             );
 
         } catch (error) {
@@ -161,7 +388,9 @@ function Analytics() {
 
 
     /*
-     * Load analytics for a specific date.
+     * =========================
+     * Date analytics
+     * =========================
      */
 
     async function handleDateAnalytics() {
@@ -185,7 +414,7 @@ function Analytics() {
                 );
 
             setDateAnalytics(
-                response.data
+                response?.data || null
             );
 
         } catch (error) {
@@ -197,7 +426,7 @@ function Analytics() {
 
             setDateError(
                 error.response?.data?.message ||
-                "Unable to load date analytics."
+                "Unable to load analytics for this date."
             );
 
             setDateAnalytics(null);
@@ -211,110 +440,92 @@ function Analytics() {
 
 
     /*
-     * Loading URLs
+     * =========================
+     * Loading
+     * =========================
      */
 
-    if (loading) {
+    if (loadingUrls) {
 
         return (
             <div className="dashboard-state">
                 Loading analytics...
             </div>
         );
-
     }
 
 
     /*
-     * Error while loading URLs
-     */
-
-    if (
-        error &&
-        urls.length === 0
-    ) {
-
-        return (
-            <div className="dashboard-state dashboard-error">
-                {error}
-            </div>
-        );
-
-    }
-
-
-    /*
+     * =========================
      * No URLs
+     * =========================
      */
 
     if (urls.length === 0) {
 
         return (
+
             <div className="dashboard-page">
 
-                <header className="dashboard-header">
+                <div className="analytics-empty-page">
 
-                    <div>
+                    <p className="dashboard-eyebrow">
+                        Analytics
+                    </p>
 
-                        <p className="dashboard-eyebrow">
-                            Insights
-                        </p>
-
-                        <h1>
-                            Analytics
-                        </h1>
-
-                        <p>
-                            Track how your short links
-                            are performing.
-                        </p>
-
-                    </div>
-
-                </header>
-
-
-                <div className="dashboard-empty">
-
-                    <h3>
-                        No links to analyze
-                    </h3>
+                    <h1>
+                        Nothing to analyse yet.
+                    </h1>
 
                     <p>
-                        Create a short link first
-                        to see its analytics.
+                        Create a short link and
+                        analytics will appear here.
                     </p>
 
                 </div>
 
             </div>
         );
-
     }
 
 
+    const clicksOverTime =
+        analytics?.clicksOverTime || [];
+
+    const clicksByDevice =
+        analytics?.clicksByDevice || [];
+
+    const clicksByBrowser =
+        analytics?.clicksByBrowser || [];
+
+    const clicksByCountry =
+        analytics?.clicksByCountry || [];
+
+
     return (
-        <div className="dashboard-page">
+
+        <div className="dashboard-page analytics-page">
+
 
             {/* =========================
                 Header
                ========================= */}
 
-            <header className="dashboard-header">
+            <header className="analytics-header">
 
                 <div>
 
                     <p className="dashboard-eyebrow">
-                        Insights
+                        Analytics
                     </p>
 
                     <h1>
-                        Analytics
+                        Link performance
                     </h1>
 
                     <p>
-                        Track how your short links
-                        are performing.
+                        Understand how your
+                        links are being used.
                     </p>
 
                 </div>
@@ -323,119 +534,212 @@ function Analytics() {
 
 
             {/* =========================
-                Controls
+                URL selector
                ========================= */}
 
-            <section className="analytics-controls">
+            <section className="analytics-toolbar">
 
-                <div className="analytics-control">
+                <div
+                    className="analytics-url-picker"
+                    ref={selectorRef}
+                >
 
-                    <label htmlFor="analytics-url">
-                        Short URL
-                    </label>
-
-                    <select
-                        id="analytics-url"
-                        value={selectedUrlId}
-                        onChange={event => {
-
-                            setSelectedUrlId(
-                                event.target.value
-                            );
-
-                            setDateAnalytics(null);
-                            setSelectedDate("");
-
-                        }}
-                    >
-
-                        {urls.map(url => (
-
-                            <option
-                                key={url.id}
-                                value={url.id}
-                            >
-                                {url.shortCode}
-                            </option>
-
-                        ))}
-
-                    </select>
-
-                </div>
-
-
-                <div className="analytics-control">
-
-                    <label htmlFor="analytics-period">
-                        Period
-                    </label>
-
-                    <select
-                        id="analytics-period"
-                        value={period}
-                        onChange={event =>
-                            setPeriod(
-                                event.target.value
+                    <button
+                        type="button"
+                        className="analytics-url-trigger"
+                        onClick={() =>
+                            setSelectorOpen(
+                                previous =>
+                                    !previous
                             )
                         }
                     >
 
-                        <option value="7d">
-                            Last 7 days
-                        </option>
+                        <div>
 
-                        <option value="30d">
-                            Last 30 days
-                        </option>
+                            <span>
+                                LINK
+                            </span>
 
-                        <option value="90d">
-                            Last 90 days
-                        </option>
+                            <strong>
+                                {selectedUrl?.shortCode ||
+                                    "Select a link"}
+                            </strong>
 
-                    </select>
+                            {selectedUrl && (
+
+                                <small>
+                                    {selectedUrl.originalUrl}
+                                </small>
+
+                            )}
+
+                        </div>
+
+                        <span className="selector-arrow">
+                            {selectorOpen
+                                ? "↑"
+                                : "↓"}
+                        </span>
+
+                    </button>
+
+
+                    {selectorOpen && (
+
+                        <div className="analytics-url-menu">
+
+                            <div className="analytics-url-search">
+
+                                <input
+                                    type="text"
+                                    value={urlSearch}
+                                    onChange={event =>
+                                        setUrlSearch(
+                                            event.target.value
+                                        )
+                                    }
+                                    placeholder="Search links..."
+                                    autoFocus
+                                />
+
+                            </div>
+
+
+                            <div
+                                className="analytics-url-results"
+                                onScroll={
+                                    handleSelectorScroll
+                                }
+                            >
+
+                                {filteredUrls.length === 0 ? (
+
+                                    <div className="analytics-url-empty">
+                                        No links found.
+                                    </div>
+
+                                ) : (
+
+                                    filteredUrls.map(
+                                        url => (
+
+                                            <button
+                                                type="button"
+                                                key={url.id}
+                                                className={
+                                                    url.id === selectedUrlId
+                                                        ? "analytics-url-option selected"
+                                                        : "analytics-url-option"
+                                                }
+                                                onClick={() => {
+
+                                                    setSelectedUrlId(
+                                                        url.id
+                                                    );
+
+                                                    setSelectorOpen(
+                                                        false
+                                                    );
+
+                                                    setUrlSearch("");
+                                                    setDateAnalytics(null);
+                                                    setSelectedDate("");
+
+                                                }}
+                                            >
+
+                                                <strong>
+                                                    {url.shortCode}
+                                                </strong>
+
+                                                <span>
+                                                    {url.originalUrl}
+                                                </span>
+
+                                            </button>
+
+                                        )
+                                    )
+
+                                )}
+
+
+                                {loadingMoreUrls && (
+
+                                    <div className="analytics-url-loading">
+                                        Loading more links...
+                                    </div>
+
+                                )}
+
+                                {!hasMoreUrls &&
+                                    filteredUrls.length > 0 && (
+
+                                        <div className="analytics-url-end">
+                                            End of your links
+                                        </div>
+
+                                    )}
+
+                            </div>
+
+                        </div>
+
+                    )}
+
+                </div>
+
+
+                {/* Period */}
+
+                <div className="analytics-period">
+
+                    <button
+                        type="button"
+                        className={
+                            period === "7d"
+                                ? "selected"
+                                : ""
+                        }
+                        onClick={() =>
+                            setPeriod("7d")
+                        }
+                    >
+                        7 days
+                    </button>
+
+                    <button
+                        type="button"
+                        className={
+                            period === "30d"
+                                ? "selected"
+                                : ""
+                        }
+                        onClick={() =>
+                            setPeriod("30d")
+                        }
+                    >
+                        30 days
+                    </button>
+
+                    <button
+                        type="button"
+                        className={
+                            period === "90d"
+                                ? "selected"
+                                : ""
+                        }
+                        onClick={() =>
+                            setPeriod("90d")
+                        }
+                    >
+                        90 days
+                    </button>
 
                 </div>
 
             </section>
-
-
-            {/* =========================
-                Selected URL
-               ========================= */}
-
-            {analytics && (
-
-                <section className="analytics-url-info">
-
-                    <div>
-
-                        <span>
-                            Short link
-                        </span>
-
-                        <strong>
-                            {analytics.url.shortCode}
-                        </strong>
-
-                    </div>
-
-
-                    <div>
-
-                        <span>
-                            Destination
-                        </span>
-
-                        <p>
-                            {analytics.url.originalUrl}
-                        </p>
-
-                    </div>
-
-                </section>
-
-            )}
 
 
             {error && (
@@ -447,61 +751,57 @@ function Analytics() {
             )}
 
 
-            {/* =========================
-                Analytics
-               ========================= */}
-
             {analyticsLoading ? (
 
-                <div className="dashboard-state">
-                    Loading analytics...
+                <div className="analytics-loading">
+                    Loading data...
                 </div>
 
-            ) : analytics && (
+            ) : analytics ? (
 
                 <>
 
+
                     {/* =========================
-                        Summary Cards
+                        Overview
                        ========================= */}
 
-                    <section className="analytics-summary">
+                    <section className="analytics-overview">
 
-                        <div className="analytics-card">
+                        <div className="analytics-total">
 
                             <span>
-                                Total clicks
+                                TOTAL CLICKS
                             </span>
 
                             <strong>
-                                {analytics.totalClicks}
+                                {analytics.totalClicks || 0}
                             </strong>
+
+                            <small>
+                                {period === "7d"
+                                    ? "Last 7 days"
+                                    : period === "30d"
+                                        ? "Last 30 days"
+                                        : "Last 90 days"}
+                            </small>
 
                         </div>
 
 
-                        <div className="analytics-card">
+                        <div className="analytics-link-info">
 
                             <span>
-                                Period clicks
+                                SHORT LINK
                             </span>
 
                             <strong>
-                                {analytics.periodClicks}
+                                {selectedUrl?.shortCode}
                             </strong>
 
-                        </div>
-
-
-                        <div className="analytics-card">
-
-                            <span>
-                                Period
-                            </span>
-
-                            <strong>
-                                {analytics.period}
-                            </strong>
+                            <small>
+                                {selectedUrl?.originalUrl}
+                            </small>
 
                         </div>
 
@@ -509,10 +809,10 @@ function Analytics() {
 
 
                     {/* =========================
-                        Clicks Over Time
+                        Click chart
                        ========================= */}
 
-                    <section className="analytics-panel">
+                    <section className="analytics-chart-panel">
 
                         <div className="analytics-panel-header">
 
@@ -523,8 +823,7 @@ function Analytics() {
                                 </h2>
 
                                 <p>
-                                    Click activity during
-                                    the selected period.
+                                    Daily traffic for this link.
                                 </p>
 
                             </div>
@@ -532,238 +831,98 @@ function Analytics() {
                         </div>
 
 
-                        {analytics.clicksOverTime.length === 0 ? (
+                        <div className="analytics-chart">
 
-                            <div className="analytics-empty">
-                                No clicks during this period.
-                            </div>
+                            {clicksOverTime.length === 0 ? (
 
-                        ) : (
-
-                            <div className="clicks-list">
-
-                                {analytics.clicksOverTime.map(
-                                    item => (
-
-                                        <div
-                                            className="click-row"
-                                            key={item.date}
-                                        >
-
-                                            <span>
-                                                {new Date(
-                                                    item.date
-                                                ).toLocaleDateString(
-                                                    undefined,
-                                                    {
-                                                        month: "short",
-                                                        day: "numeric"
-                                                    }
-                                                )}
-                                            </span>
-
-
-                                            <div className="click-bar-wrapper">
-
-                                                <div
-                                                    className="click-bar"
-                                                    style={{
-                                                        width: `${
-                                                            (
-                                                                item.count /
-                                                                Math.max(
-                                                                    ...analytics
-                                                                        .clicksOverTime
-                                                                        .map(
-                                                                            item =>
-                                                                                item.count
-                                                                        )
-                                                                )
-                                                            ) * 100
-                                                        }%`
-                                                    }}
-                                                />
-
-                                            </div>
-
-
-                                            <strong>
-                                                {item.count}
-                                            </strong>
-
-                                        </div>
-
-                                    )
-                                )}
-
-                            </div>
-
-                        )}
-
-                    </section>
-
-
-                    {/* =========================
-                        Breakdown
-                       ========================= */}
-
-                    <section className="analytics-grid">
-
-                        {/* Devices */}
-
-                        <div className="analytics-panel">
-
-                            <div className="analytics-panel-header">
-
-                                <div>
-
-                                    <h2>
-                                        Devices
-                                    </h2>
-
-                                    <p>
-                                        Where your visitors
-                                        are coming from.
-                                    </p>
-
+                                <div className="analytics-no-data">
+                                    No clicks recorded during
+                                    this period.
                                 </div>
 
-                            </div>
+                            ) : (
 
+                                <ResponsiveContainer
+                                    width="100%"
+                                    height={320}
+                                >
 
-                            <div className="analytics-breakdown">
+                                    <LineChart
+                                        data={clicksOverTime}
+                                        margin={{
+                                            top: 20,
+                                            right: 20,
+                                            left: -20,
+                                            bottom: 10
+                                        }}
+                                    >
 
-                                {analytics.clicksByDevice.map(
-                                    item => (
+                                        <CartesianGrid
+                                            vertical={false}
+                                            stroke="#e5e1d8"
+                                        />
 
-                                        <div
-                                            className="breakdown-row"
-                                            key={
-                                                item._id ||
-                                                "unknown-device"
+                                        <XAxis
+                                            dataKey="date"
+                                            axisLine={false}
+                                            tickLine={false}
+                                            tick={{
+                                                fontSize: 12,
+                                                fill: "#71808d"
+                                            }}
+                                            tickFormatter={
+                                                value =>
+                                                    new Date(
+                                                        value
+                                                    ).toLocaleDateString(
+                                                        undefined,
+                                                        {
+                                                            month: "short",
+                                                            day: "numeric"
+                                                        }
+                                                    )
                                             }
-                                        >
+                                        />
 
-                                            <span>
-                                                {item._id || "Unknown"}
-                                            </span>
+                                        <YAxis
+                                            axisLine={false}
+                                            tickLine={false}
+                                            allowDecimals={false}
+                                            tick={{
+                                                fontSize: 12,
+                                                fill: "#71808d"
+                                            }}
+                                        />
 
-                                            <strong>
-                                                {item.count}
-                                            </strong>
+                                        <Tooltip
+                                            contentStyle={{
+                                                border:
+                                                    "1px solid #ddd9d0",
+                                                borderRadius:
+                                                    "6px",
+                                                background:
+                                                    "#fffdf9",
+                                                boxShadow:
+                                                    "0 8px 24px rgba(20,37,54,0.08)"
+                                            }}
+                                        />
 
-                                        </div>
+                                        <Line
+                                            type="monotone"
+                                            dataKey="count"
+                                            stroke="#0f8b8d"
+                                            strokeWidth={2}
+                                            dot={false}
+                                            activeDot={{
+                                                r: 4
+                                            }}
+                                        />
 
-                                    )
-                                )}
+                                    </LineChart>
 
-                            </div>
+                                </ResponsiveContainer>
 
-                        </div>
-
-
-                        {/* Browsers */}
-
-                        <div className="analytics-panel">
-
-                            <div className="analytics-panel-header">
-
-                                <div>
-
-                                    <h2>
-                                        Browsers
-                                    </h2>
-
-                                    <p>
-                                        Browsers used to
-                                        open your links.
-                                    </p>
-
-                                </div>
-
-                            </div>
-
-
-                            <div className="analytics-breakdown">
-
-                                {analytics.clicksByBrowser.map(
-                                    item => (
-
-                                        <div
-                                            className="breakdown-row"
-                                            key={
-                                                item._id ||
-                                                "unknown-browser"
-                                            }
-                                        >
-
-                                            <span>
-                                                {item._id || "Unknown"}
-                                            </span>
-
-                                            <strong>
-                                                {item.count}
-                                            </strong>
-
-                                        </div>
-
-                                    )
-                                )}
-
-                            </div>
-
-                        </div>
-
-
-                        {/* Countries */}
-
-                        <div className="analytics-panel">
-
-                            <div className="analytics-panel-header">
-
-                                <div>
-
-                                    <h2>
-                                        Countries
-                                    </h2>
-
-                                    <p>
-                                        Geographic distribution
-                                        of clicks.
-                                    </p>
-
-                                </div>
-
-                            </div>
-
-
-                            <div className="analytics-breakdown">
-
-                                {analytics.clicksByCountry.map(
-                                    item => (
-
-                                        <div
-                                            className="breakdown-row"
-                                            key={
-                                                item._id ||
-                                                "unknown-country"
-                                            }
-                                        >
-
-                                            <span>
-                                                {item._id || "Unknown"}
-                                            </span>
-
-                                            <strong>
-                                                {item.count}
-                                            </strong>
-
-                                        </div>
-
-                                    )
-                                )}
-
-                            </div>
+                            )}
 
                         </div>
 
@@ -771,22 +930,22 @@ function Analytics() {
 
 
                     {/* =========================
-                        Date Analytics
+                        Traffic
                        ========================= */}
 
-                    <section className="analytics-panel date-analytics-panel">
+                    <section className="analytics-traffic">
 
                         <div className="analytics-panel-header">
 
                             <div>
 
                                 <h2>
-                                    Daily analytics
+                                    Traffic breakdown
                                 </h2>
 
                                 <p>
-                                    View detailed analytics
-                                    for a specific date.
+                                    Where your visitors
+                                    are coming from.
                                 </p>
 
                             </div>
@@ -794,36 +953,77 @@ function Analytics() {
                         </div>
 
 
-                        <div className="date-analytics-controls">
+                        <div className="traffic-columns">
 
-                            <div className="analytics-control">
+                            <TrafficList
+                                title="Devices"
+                                items={
+                                    clicksByDevice
+                                }
+                            />
 
-                                <label htmlFor="analytics-date">
-                                    Select date
-                                </label>
+                            <TrafficList
+                                title="Browsers"
+                                items={
+                                    clicksByBrowser
+                                }
+                            />
 
-                                <input
-                                    id="analytics-date"
-                                    type="date"
-                                    value={selectedDate}
-                                    onChange={event => {
-                                        setSelectedDate(
-                                            event.target.value
-                                        );
+                            <TrafficList
+                                title="Countries"
+                                items={
+                                    clicksByCountry
+                                }
+                            />
 
-                                        setDateAnalytics(
-                                            null
-                                        );
+                        </div>
 
-                                        setDateError("");
-                                    }}
-                                />
+                    </section>
+
+
+                    {/* =========================
+                        Date lookup
+                       ========================= */}
+
+                    <section className="analytics-date">
+
+                        <div className="analytics-panel-header">
+
+                            <div>
+
+                                <h2>
+                                    Daily lookup
+                                </h2>
+
+                                <p>
+                                    Check traffic for a
+                                    specific date.
+                                </p>
 
                             </div>
 
+                        </div>
+
+
+                        <div className="analytics-date-form">
+
+                            <input
+                                type="date"
+                                value={selectedDate}
+                                onChange={event => {
+
+                                    setSelectedDate(
+                                        event.target.value
+                                    );
+
+                                    setDateAnalytics(null);
+                                    setDateError("");
+
+                                }}
+                            />
 
                             <button
-                                className="dashboard-primary-button"
+                                type="button"
                                 onClick={
                                     handleDateAnalytics
                                 }
@@ -834,7 +1034,7 @@ function Analytics() {
                             >
                                 {dateLoading
                                     ? "Loading..."
-                                    : "View date"}
+                                    : "View"}
                             </button>
 
                         </div>
@@ -851,109 +1051,50 @@ function Analytics() {
 
                         {dateAnalytics && (
 
-                            <div className="date-results">
+                            <div className="analytics-date-result">
 
-                                <div className="date-total">
-
+                                <div>
                                     <span>
-                                        Total clicks
+                                        Clicks
                                     </span>
 
                                     <strong>
-                                        {dateAnalytics.totalClicks}
+                                        {
+                                            dateAnalytics
+                                                .totalClicks ||
+                                            0
+                                        }
                                     </strong>
-
                                 </div>
 
+                                <div>
+                                    <span>
+                                        Devices
+                                    </span>
 
-                                <div className="analytics-breakdown">
+                                    <strong>
+                                        {
+                                            dateAnalytics
+                                                .clicksByDevice
+                                                ?.length ||
+                                            0
+                                        }
+                                    </strong>
+                                </div>
 
-                                    {dateAnalytics.clicksByDevice.map(
-                                        item => (
+                                <div>
+                                    <span>
+                                        Countries
+                                    </span>
 
-                                            <div
-                                                className="breakdown-row"
-                                                key={
-                                                    `date-device-${
-                                                        item._id ||
-                                                        "unknown"
-                                                    }`
-                                                }
-                                            >
-
-                                                <span>
-                                                    Device:{" "}
-                                                    {item._id ||
-                                                        "Unknown"}
-                                                </span>
-
-                                                <strong>
-                                                    {item.count}
-                                                </strong>
-
-                                            </div>
-
-                                        )
-                                    )}
-
-
-                                    {dateAnalytics.clicksByBrowser.map(
-                                        item => (
-
-                                            <div
-                                                className="breakdown-row"
-                                                key={
-                                                    `date-browser-${
-                                                        item._id ||
-                                                        "unknown"
-                                                    }`
-                                                }
-                                            >
-
-                                                <span>
-                                                    Browser:{" "}
-                                                    {item._id ||
-                                                        "Unknown"}
-                                                </span>
-
-                                                <strong>
-                                                    {item.count}
-                                                </strong>
-
-                                            </div>
-
-                                        )
-                                    )}
-
-
-                                    {dateAnalytics.clicksByCountry.map(
-                                        item => (
-
-                                            <div
-                                                className="breakdown-row"
-                                                key={
-                                                    `date-country-${
-                                                        item._id ||
-                                                        "unknown"
-                                                    }`
-                                                }
-                                            >
-
-                                                <span>
-                                                    Country:{" "}
-                                                    {item._id ||
-                                                        "Unknown"}
-                                                </span>
-
-                                                <strong>
-                                                    {item.count}
-                                                </strong>
-
-                                            </div>
-
-                                        )
-                                    )}
-
+                                    <strong>
+                                        {
+                                            dateAnalytics
+                                                .clicksByCountry
+                                                ?.length ||
+                                            0
+                                        }
+                                    </strong>
                                 </div>
 
                             </div>
@@ -963,6 +1104,66 @@ function Analytics() {
                     </section>
 
                 </>
+
+            ) : null}
+
+        </div>
+    );
+}
+
+
+/*
+ * =========================
+ * Traffic list
+ * =========================
+ */
+
+function TrafficList({
+    title,
+    items
+}) {
+
+    return (
+
+        <div className="traffic-column">
+
+            <h3>
+                {title}
+            </h3>
+
+            {items.length === 0 ? (
+
+                <p className="traffic-empty">
+                    No data yet.
+                </p>
+
+            ) : (
+
+                items.map(
+                    (item, index) => (
+
+                        <div
+                            className="traffic-row"
+                            key={
+                                item._id ||
+                                `${title}-${index}`
+                            }
+                        >
+
+                            <span>
+                                {item._id ||
+                                    "Unknown"}
+                            </span>
+
+                            <strong>
+                                {item.count || 0}
+                            </strong>
+
+                        </div>
+
+                    )
+                )
+
             )}
 
         </div>

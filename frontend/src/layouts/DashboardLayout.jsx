@@ -1,5 +1,10 @@
 import { useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+
+import {
+    NavLink,
+    Outlet,
+    useNavigate
+} from "react-router-dom";
 
 import {
     logout,
@@ -20,10 +25,9 @@ function DashboardLayout() {
     const [logoutError, setLogoutError] =
         useState("");
 
+    const [sidebarOpen, setSidebarOpen] =
+        useState(false);
 
-    /* =========================
-       Logout current device
-       ========================= */
 
     const handleLogout = async () => {
 
@@ -61,10 +65,6 @@ function DashboardLayout() {
         }
     };
 
-
-    /* =========================
-       Logout all devices
-       ========================= */
 
     const handleLogoutAll = async () => {
 
@@ -112,36 +112,115 @@ function DashboardLayout() {
     };
 
 
+    const closeSidebar = () => {
+        setSidebarOpen(false);
+    };
+
+
     return (
 
         <div className="dashboard-layout">
 
             {/* =========================
-                Sidebar
+                Mobile Header
                ========================= */}
 
-            <aside className="dashboard-sidebar">
+            <header className="dashboard-mobile-header">
 
-                <div className="dashboard-logo">
+                <div className="dashboard-mobile-logo">
                     LinkForge
                 </div>
 
+                <button
+                    type="button"
+                    className="dashboard-menu-button"
+                    onClick={() =>
+                        setSidebarOpen(true)
+                    }
+                    aria-label="Open navigation"
+                >
+                    ☰
+                </button>
 
-                <nav className="dashboard-nav">
+            </header>
 
-                    <NavLink to="/dashboard">
-                        Overview
-                    </NavLink>
 
-                    <NavLink to="/dashboard/urls">
-                        My URLs
-                    </NavLink>
+            {/* =========================
+                Mobile Overlay
+               ========================= */}
 
-                    <NavLink to="/dashboard/analytics">
-                        Analytics
-                    </NavLink>
+            {sidebarOpen && (
+                <div
+                    className="dashboard-sidebar-overlay"
+                    onClick={closeSidebar}
+                />
+            )}
 
-                </nav>
+
+            {/* =========================
+                Sidebar
+               ========================= */}
+
+            <aside
+                className={`dashboard-sidebar ${
+                    sidebarOpen
+                        ? "dashboard-sidebar-open"
+                        : ""
+                }`}
+            >
+
+                <div className="dashboard-sidebar-top">
+
+                    <div className="dashboard-sidebar-header">
+
+                        <div className="dashboard-logo">
+                            LinkForge
+                        </div>
+
+                        <button
+                            type="button"
+                            className="dashboard-sidebar-close"
+                            onClick={closeSidebar}
+                            aria-label="Close navigation"
+                        >
+                            ×
+                        </button>
+
+                    </div>
+
+
+                    <p className="dashboard-nav-label">
+                        Workspace
+                    </p>
+
+
+                    <nav className="dashboard-nav">
+
+                        <NavLink
+                            end
+                            to="/dashboard"
+                            onClick={closeSidebar}
+                        >
+                            Overview
+                        </NavLink>
+
+                        <NavLink
+                            to="/dashboard/urls"
+                            onClick={closeSidebar}
+                        >
+                            My URLs
+                        </NavLink>
+
+                        <NavLink
+                            to="/dashboard/analytics"
+                            onClick={closeSidebar}
+                        >
+                            Analytics
+                        </NavLink>
+
+                    </nav>
+
+                </div>
 
 
                 {/* =========================
@@ -151,11 +230,9 @@ function DashboardLayout() {
                 <div className="dashboard-sidebar-footer">
 
                     {logoutError && (
-
                         <div className="sidebar-logout-error">
                             {logoutError}
                         </div>
-
                     )}
 
 
@@ -168,11 +245,9 @@ function DashboardLayout() {
                             loggingOutAll
                         }
                     >
-
                         {loggingOut
                             ? "Logging out..."
                             : "Logout"}
-
                     </button>
 
 
@@ -185,11 +260,9 @@ function DashboardLayout() {
                             loggingOutAll
                         }
                     >
-
                         {loggingOutAll
                             ? "Logging out..."
                             : "Logout all devices"}
-
                     </button>
 
                 </div>

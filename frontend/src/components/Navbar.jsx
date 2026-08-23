@@ -1,6 +1,12 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 function Navbar() {
+    const location = useLocation();
+
+    const isAuthPage =
+        location.pathname === "/login" ||
+        location.pathname === "/register";
+
     return (
         <nav className="navbar">
 
@@ -11,27 +17,32 @@ function Navbar() {
                 LinkForge
             </Link>
 
-
             <div className="navbar-links">
 
-                <a href="#features">
-                    Features
-                </a>
+                {!isAuthPage && (
+                    <>
+                        <a href="#features">
+                            Features
+                        </a>
 
-                <a href="#how-it-works">
-                    How it works
-                </a>
+                        <a href="#how-it-works">
+                            How it works
+                        </a>
+                    </>
+                )}
 
                 <Link to="/login">
                     Login
                 </Link>
 
-                <Link
-                    to="/register"
-                    className="navbar-register"
-                >
-                    Get Started
-                </Link>
+                {!isAuthPage && (
+                    <Link
+                        to="/register"
+                        className="navbar-register"
+                    >
+                        Get Started
+                    </Link>
+                )}
 
             </div>
 
