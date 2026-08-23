@@ -7,6 +7,10 @@ const {
 } = require("../utils/userAgent");
 
 const {
+    getCountryFromIp
+} = require("../utils/geoLocation");
+
+const {
     StatusCodes
 } = require("http-status-codes");
 
@@ -113,9 +117,6 @@ const createUrl =
 /*
  * Redirect Short URL
  */
-/*
- * Redirect Short URL
- */
 const redirectToOriginalUrl =
     asyncHandler(
         async (req, res) => {
@@ -140,6 +141,7 @@ const redirectToOriginalUrl =
                  * Collect analytics information
                  * only for successful URL access.
                  */
+
                 const userAgent =
                     req.get(
                         "user-agent"
@@ -169,6 +171,16 @@ const redirectToOriginalUrl =
 
 
                 /*
+                 * Resolve visitor country
+                 * from their IP address.
+                 */
+                const country =
+                    getCountryFromIp(
+                        ipAddress
+                    );
+
+
+                /*
                  * Count the click only after
                  * successful URL validation.
                  */
@@ -186,8 +198,9 @@ const redirectToOriginalUrl =
 
                     device,
 
-                    browser
+                    browser,
 
+                    country
                 });
 
 
@@ -342,6 +355,16 @@ const accessProtectedUrl =
 
 
             /*
+             * Resolve visitor country
+             * from their IP address.
+             */
+            const country =
+                getCountryFromIp(
+                    ipAddress
+                );
+
+
+            /*
              * Only count the click after
              * successful password verification.
              */
@@ -359,7 +382,9 @@ const accessProtectedUrl =
 
                 device,
 
-                browser
+                browser,
+
+                country
             });
 
 
@@ -429,6 +454,7 @@ const getMyUrls =
             const urls =
                 result.urls.map(
                     (url) => ({
+
                         id:
                             url._id,
 
@@ -467,17 +493,21 @@ const getMyUrls =
                     StatusCodes.OK
                 )
                 .json(
+
                     new ApiResponse(
                         StatusCodes.OK,
+
                         {
                             ...result,
                             urls
                         },
+
                         "URLs fetched successfully"
                     )
                 );
         }
     );
+
 
 /*
  * Get Single URL

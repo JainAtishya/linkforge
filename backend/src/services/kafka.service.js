@@ -1,4 +1,5 @@
-const crypto = require("crypto");
+const crypto =
+    require("crypto");
 
 const {
     producer
@@ -10,16 +11,17 @@ let producerConnected = false;
 /*
  * Connect Kafka producer
  */
-
 const connectProducer = async () => {
 
     if (producerConnected) {
         return;
     }
 
+
     console.log(
         "Kafka producer connecting..."
     );
+
 
     try {
 
@@ -46,15 +48,24 @@ const connectProducer = async () => {
 /*
  * Publish URL click event
  */
-
 const publishUrlClicked = async ({
+
     urlId,
+
     shortCode,
+
     ipAddress,
+
     userAgent,
+
     referrer,
+
     device,
-    browser
+
+    browser,
+
+    country
+
 }) => {
 
     const event = {
@@ -81,7 +92,10 @@ const publishUrlClicked = async ({
 
         device,
 
-        browser
+        browser,
+
+        country
+
     };
 
 
@@ -90,7 +104,6 @@ const publishUrlClicked = async ({
      *
      * Don't break the redirect.
      */
-
     if (!producerConnected) {
 
         console.error(
@@ -109,11 +122,14 @@ const publishUrlClicked = async ({
                 "url-clicks",
 
             messages: [
+
                 {
                     value:
                         JSON.stringify(event)
                 }
+
             ]
+
         });
 
     } catch (error) {
@@ -122,10 +138,15 @@ const publishUrlClicked = async ({
             "Kafka publish failed:",
             error.message
         );
+
     }
 };
 
+
 module.exports = {
+
     connectProducer,
+
     publishUrlClicked
+
 };

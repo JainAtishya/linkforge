@@ -20,7 +20,6 @@ const saveClickEvent = async (event) => {
     try {
 
         await ClickEvent.create({
-
             eventId:
                 event.eventId,
 
@@ -46,7 +45,10 @@ const saveClickEvent = async (event) => {
                 event.device,
 
             browser:
-                event.browser
+                event.browser,
+
+            country:
+                event.country
         });
 
 
