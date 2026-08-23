@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "worker:analytics": "node src/workers/analytics.worker.js"
+    "worker:analytics": "node src/workers/analytics.worker.js",
+    "worker:cleanup": "node src/workers/cleanup.worker.js"
   },
   "keywords": [],
   "author": "",
