@@ -511,57 +511,42 @@ const getUserUrls = async (
 
 
     /*
-     * Base filter.
-     *
-     * We always restrict the search
-     * to the authenticated user's URLs.
+     * Base query:
+     * user can only see their own URLs.
      */
-    const filter = {
+
+    const query = {
         userId
     };
 
 
     /*
-     * Search by:
+     * Optional search.
+     *
+     * Search both:
      * - shortCode
      * - originalUrl
      *
-     * Escape the search string so that
-     * user input cannot modify the
-     * regular expression.
+     * Case-insensitive partial matching.
      */
-    const normalizedSearch =
-        search
-            .trim()
-            .slice(0, 100);
 
+    if (search) {
 
-    if (normalizedSearch) {
-
-        const escapedSearch =
-            normalizedSearch.replace(
-                /[.*+?^${}()|[\]\\]/g,
-                "\\$&"
-            );
-
-
-        filter.$or = [
-
+        query.$or = [
             {
                 shortCode: {
-                    $regex: escapedSearch,
+                    $regex: search,
                     $options: "i"
                 }
             },
-
             {
                 originalUrl: {
-                    $regex: escapedSearch,
+                    $regex: search,
                     $options: "i"
                 }
             }
-
         ];
+
     }
 
 
@@ -570,7 +555,7 @@ const getUserUrls = async (
         total
     ] = await Promise.all([
 
-        ShortUrl.find(filter)
+        ShortUrl.find(query)
             .sort({
                 createdAt: -1
             })
@@ -578,7 +563,10 @@ const getUserUrls = async (
             .limit(limit)
             .lean(),
 
-        ShortUrl.countDocuments(filter)
+
+        ShortUrl.countDocuments(
+            query
+        )
 
     ]);
 
@@ -587,7 +575,8 @@ const getUserUrls = async (
         urls,
         total,
         page,
-        limit
+        limit,
+        search
     };
 };
 

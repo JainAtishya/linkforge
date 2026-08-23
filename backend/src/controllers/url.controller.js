@@ -409,7 +409,8 @@ const getMyUrls =
                     ),
                     100
                 );
-                
+
+
             const search =
                 typeof req.query.search === "string"
                     ? req.query.search.trim()
@@ -420,14 +421,14 @@ const getMyUrls =
                 await getUserUrls(
                     req.user.sub,
                     page,
-                    limit
+                    limit,
+                    search
                 );
 
 
             const urls =
                 result.urls.map(
                     (url) => ({
-
                         id:
                             url._id,
 
@@ -466,21 +467,17 @@ const getMyUrls =
                     StatusCodes.OK
                 )
                 .json(
-
                     new ApiResponse(
                         StatusCodes.OK,
-
                         {
                             ...result,
                             urls
                         },
-
                         "URLs fetched successfully"
                     )
                 );
         }
     );
-
 
 /*
  * Get Single URL

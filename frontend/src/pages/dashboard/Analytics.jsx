@@ -22,6 +22,7 @@ import {
 
 
 const URLS_PER_PAGE = 10;
+const SEARCH_DELAY = 350;
 
 
 function Analytics() {
@@ -49,6 +50,16 @@ function Analytics() {
 
     const [selectedUrlId, setSelectedUrlId] =
         useState("");
+
+    /*
+     * Keep the selected URL separately.
+     *
+     * This is important because the selected
+     * URL might disappear from the current
+     * search results.
+     */
+    const [selectedUrlData, setSelectedUrlData] =
+        useState(null);
 
     const [urlSearch, setUrlSearch] =
         useState("");
@@ -104,25 +115,70 @@ function Analytics() {
     const selectorRef =
         useRef(null);
 
+    const searchTimerRef =
+        useRef(null);
+
+    /*
+     * Used to prevent older search
+     * requests from overwriting newer
+     * search results.
+     */
+    const searchRequestRef =
+        useRef(0);
+
 
     /*
      * =========================
-     * Load first page
+     * Load URLs
      * =========================
      */
 
-    async function loadInitialUrls() {
+    async function loadUrls(
+        page = 1,
+        search = "",
+        append = false
+    ) {
+
+        const requestId =
+            ++searchRequestRef.current;
 
         try {
 
-            setLoadingUrls(true);
+            if (append) {
+                setLoadingMoreUrls(true);
+            } else {
+                setLoadingUrls(true);
+            }
+
             setError("");
 
+            /*
+             * Backend request:
+             *
+             * page
+             * limit
+             * search
+             */
             const response =
                 await getUrls(
-                    1,
-                    URLS_PER_PAGE
+                    page,
+                    URLS_PER_PAGE,
+                    search
                 );
+
+
+            /*
+             * If another search request was
+             * started while this request was
+             * running, ignore this response.
+             */
+            if (
+                requestId !==
+                searchRequestRef.current
+            ) {
+                return;
+            }
+
 
             const fetchedUrls =
                 Array.isArray(
@@ -131,30 +187,114 @@ function Analytics() {
                     ? response.data.urls
                     : [];
 
-            setUrls(fetchedUrls);
-            setUrlPage(1);
 
             const total =
                 response?.data?.total || 0;
 
-            setHasMoreUrls(
-                fetchedUrls.length < total
-            );
 
-            if (fetchedUrls.length > 0) {
+            /*
+             * =========================
+             * Append results
+             * =========================
+             */
 
-                setSelectedUrlId(
-                    fetchedUrls[0].id
-                );
+            if (append) {
+
+                setUrls(previousUrls => {
+
+                    const existingIds =
+                        new Set(
+                            previousUrls.map(
+                                url => url.id
+                            )
+                        );
+
+
+                    const uniqueUrls =
+                        fetchedUrls.filter(
+                            url =>
+                                !existingIds.has(
+                                    url.id
+                                )
+                        );
+
+
+                    const updatedUrls = [
+                        ...previousUrls,
+                        ...uniqueUrls
+                    ];
+
+
+                    setHasMoreUrls(
+                        updatedUrls.length < total
+                    );
+
+
+                    return updatedUrls;
+                });
 
             }
 
+
+            /*
+             * =========================
+             * Fresh result set
+             * =========================
+             */
+
+            else {
+
+                setUrls(
+                    fetchedUrls
+                );
+
+                setUrlPage(
+                    page
+                );
+
+
+                /*
+                 * Select the first URL only
+                 * when there is no selection.
+                 */
+                if (
+                    fetchedUrls.length > 0 &&
+                    !selectedUrlId
+                ) {
+
+                    setSelectedUrlId(
+                        fetchedUrls[0].id
+                    );
+
+                    setSelectedUrlData(
+                        fetchedUrls[0]
+                    );
+                }
+
+
+                setHasMoreUrls(
+                    fetchedUrls.length < total
+                );
+            }
+
         } catch (error) {
+
+            /*
+             * Ignore errors from old requests.
+             */
+            if (
+                requestId !==
+                searchRequestRef.current
+            ) {
+                return;
+            }
+
 
             console.error(
                 "Failed to load URLs:",
                 error
             );
+
 
             setError(
                 error.response?.data?.message ||
@@ -163,17 +303,100 @@ function Analytics() {
 
         } finally {
 
-            setLoadingUrls(false);
+            if (
+                requestId ===
+                searchRequestRef.current
+            ) {
 
+                setLoadingUrls(false);
+
+                setLoadingMoreUrls(false);
+            }
         }
     }
 
 
+    /*
+     * =========================
+     * Initial URL load
+     * =========================
+     */
+
     useEffect(() => {
 
-        loadInitialUrls();
+        loadUrls(
+            1,
+            "",
+            false
+        );
 
     }, []);
+
+
+    /*
+     * =========================
+     * Backend search
+     * =========================
+     *
+     * Search is debounced so we don't
+     * make an API request for every
+     * individual keystroke.
+     */
+
+    useEffect(() => {
+
+        /*
+         * Search only while the selector
+         * is open.
+         */
+        if (!selectorOpen) {
+            return;
+        }
+
+
+        clearTimeout(
+            searchTimerRef.current
+        );
+
+
+        searchTimerRef.current =
+            setTimeout(() => {
+
+                const search =
+                    urlSearch.trim();
+
+
+                /*
+                 * Start a fresh result set.
+                 */
+                setUrls([]);
+
+                setUrlPage(1);
+
+                setHasMoreUrls(true);
+
+
+                loadUrls(
+                    1,
+                    search,
+                    false
+                );
+
+            }, SEARCH_DELAY);
+
+
+        return () => {
+
+            clearTimeout(
+                searchTimerRef.current
+            );
+
+        };
+
+    }, [
+        urlSearch,
+        selectorOpen
+    ]);
 
 
     /*
@@ -185,24 +408,30 @@ function Analytics() {
     async function loadMoreUrls() {
 
         if (
+            loadingUrls ||
             loadingMoreUrls ||
             !hasMoreUrls
         ) {
             return;
         }
 
+
+        const nextPage =
+            urlPage + 1;
+
+
         try {
 
             setLoadingMoreUrls(true);
 
-            const nextPage =
-                urlPage + 1;
 
             const response =
                 await getUrls(
                     nextPage,
-                    URLS_PER_PAGE
+                    URLS_PER_PAGE,
+                    urlSearch.trim()
                 );
+
 
             const newUrls =
                 Array.isArray(
@@ -210,6 +439,11 @@ function Analytics() {
                 )
                     ? response.data.urls
                     : [];
+
+
+            const total =
+                response?.data?.total || 0;
+
 
             setUrls(previousUrls => {
 
@@ -220,6 +454,7 @@ function Analytics() {
                         )
                     );
 
+
                 const uniqueUrls =
                     newUrls.filter(
                         url =>
@@ -228,22 +463,24 @@ function Analytics() {
                             )
                     );
 
-                return [
+
+                const updatedUrls = [
                     ...previousUrls,
                     ...uniqueUrls
                 ];
+
+
+                setHasMoreUrls(
+                    updatedUrls.length < total
+                );
+
+
+                return updatedUrls;
             });
 
-            setUrlPage(nextPage);
 
-            const total =
-                response?.data?.total || 0;
-
-            setHasMoreUrls(
-                (
-                    urls.length +
-                    newUrls.length
-                ) < total
+            setUrlPage(
+                nextPage
             );
 
         } catch (error) {
@@ -253,10 +490,17 @@ function Analytics() {
                 error
             );
 
+
+            setError(
+                error.response?.data?.message ||
+                "Unable to load more URLs."
+            );
+
         } finally {
 
-            setLoadingMoreUrls(false);
-
+            setLoadingMoreUrls(
+                false
+            );
         }
     }
 
@@ -267,65 +511,79 @@ function Analytics() {
      * =========================
      */
 
-    function handleSelectorScroll(event) {
+    function handleSelectorScroll(
+        event
+    ) {
 
         const element =
             event.currentTarget;
+
 
         const reachedBottom =
             element.scrollTop +
             element.clientHeight >=
             element.scrollHeight - 30;
 
+
         if (reachedBottom) {
-
             loadMoreUrls();
-
         }
     }
 
 
     /*
      * =========================
-     * Search
-     * =========================
-     */
-
-    const filteredUrls =
-        urls.filter(url => {
-
-            const search =
-                urlSearch
-                    .trim()
-                    .toLowerCase();
-
-            if (!search) {
-                return true;
-            }
-
-            return (
-                url.shortCode
-                    ?.toLowerCase()
-                    .includes(search) ||
-
-                url.originalUrl
-                    ?.toLowerCase()
-                    .includes(search)
-            );
-        });
-
-
-    /*
-     * =========================
      * Selected URL
      * =========================
+     *
+     * Prefer selectedUrlData because
+     * selected URL may not exist inside
+     * the current search result list.
      */
 
     const selectedUrl =
+        selectedUrlData ||
         urls.find(
             url =>
                 url.id === selectedUrlId
         );
+
+
+    /*
+     * =========================
+     * Select URL
+     * =========================
+     */
+
+    function handleSelectUrl(url) {
+
+        setSelectedUrlId(
+            url.id
+        );
+
+        setSelectedUrlData(
+            url
+        );
+
+
+        setSelectorOpen(
+            false
+        );
+
+
+        setUrlSearch("");
+
+
+        setDateAnalytics(
+            null
+        );
+
+        setSelectedDate(
+            ""
+        );
+
+        setError("");
+    }
 
 
     /*
@@ -340,16 +598,22 @@ function Analytics() {
             return;
         }
 
+
         try {
 
-            setAnalyticsLoading(true);
+            setAnalyticsLoading(
+                true
+            );
+
             setError("");
+
 
             const response =
                 await getAnalytics(
                     selectedUrlId,
                     period
                 );
+
 
             setAnalytics(
                 response?.data || null
@@ -362,17 +626,22 @@ function Analytics() {
                 error
             );
 
+
             setError(
                 error.response?.data?.message ||
                 "Unable to load analytics."
             );
 
-            setAnalytics(null);
+
+            setAnalytics(
+                null
+            );
 
         } finally {
 
-            setAnalyticsLoading(false);
-
+            setAnalyticsLoading(
+                false
+            );
         }
     }
 
@@ -402,16 +671,22 @@ function Analytics() {
             return;
         }
 
+
         try {
 
-            setDateLoading(true);
+            setDateLoading(
+                true
+            );
+
             setDateError("");
+
 
             const response =
                 await getAnalyticsByDate(
                     selectedUrlId,
                     selectedDate
                 );
+
 
             setDateAnalytics(
                 response?.data || null
@@ -424,17 +699,22 @@ function Analytics() {
                 error
             );
 
+
             setDateError(
                 error.response?.data?.message ||
                 "Unable to load analytics for this date."
             );
 
-            setDateAnalytics(null);
+
+            setDateAnalytics(
+                null
+            );
 
         } finally {
 
-            setDateLoading(false);
-
+            setDateLoading(
+                false
+            );
         }
     }
 
@@ -489,14 +769,23 @@ function Analytics() {
     }
 
 
+    /*
+     * =========================
+     * Analytics data
+     * =========================
+     */
+
     const clicksOverTime =
         analytics?.clicksOverTime || [];
+
 
     const clicksByDevice =
         analytics?.clicksByDevice || [];
 
+
     const clicksByBrowser =
         analytics?.clicksByBrowser || [];
+
 
     const clicksByCountry =
         analytics?.clicksByCountry || [];
@@ -505,7 +794,6 @@ function Analytics() {
     return (
 
         <div className="dashboard-page analytics-page">
-
 
             {/* =========================
                 Header
@@ -534,7 +822,7 @@ function Analytics() {
 
 
             {/* =========================
-                URL selector
+                URL selector + period
                ========================= */}
 
             <section className="analytics-toolbar">
@@ -569,17 +857,22 @@ function Analytics() {
                             {selectedUrl && (
 
                                 <small>
-                                    {selectedUrl.originalUrl}
+                                    {
+                                        selectedUrl.originalUrl
+                                    }
                                 </small>
 
                             )}
 
                         </div>
 
+
                         <span className="selector-arrow">
+
                             {selectorOpen
                                 ? "↑"
                                 : "↓"}
+
                         </span>
 
                     </button>
@@ -594,10 +887,11 @@ function Analytics() {
                                 <input
                                     type="text"
                                     value={urlSearch}
-                                    onChange={event =>
-                                        setUrlSearch(
-                                            event.target.value
-                                        )
+                                    onChange={
+                                        event =>
+                                            setUrlSearch(
+                                                event.target.value
+                                            )
                                     }
                                     placeholder="Search links..."
                                     autoFocus
@@ -613,7 +907,13 @@ function Analytics() {
                                 }
                             >
 
-                                {filteredUrls.length === 0 ? (
+                                {loadingUrls ? (
+
+                                    <div className="analytics-url-loading">
+                                        Searching...
+                                    </div>
+
+                                ) : urls.length === 0 ? (
 
                                     <div className="analytics-url-empty">
                                         No links found.
@@ -621,40 +921,35 @@ function Analytics() {
 
                                 ) : (
 
-                                    filteredUrls.map(
+                                    urls.map(
                                         url => (
 
                                             <button
                                                 type="button"
                                                 key={url.id}
                                                 className={
-                                                    url.id === selectedUrlId
+                                                    url.id ===
+                                                    selectedUrlId
                                                         ? "analytics-url-option selected"
                                                         : "analytics-url-option"
                                                 }
-                                                onClick={() => {
-
-                                                    setSelectedUrlId(
-                                                        url.id
-                                                    );
-
-                                                    setSelectorOpen(
-                                                        false
-                                                    );
-
-                                                    setUrlSearch("");
-                                                    setDateAnalytics(null);
-                                                    setSelectedDate("");
-
-                                                }}
+                                                onClick={() =>
+                                                    handleSelectUrl(
+                                                        url
+                                                    )
+                                                }
                                             >
 
                                                 <strong>
-                                                    {url.shortCode}
+                                                    {
+                                                        url.shortCode
+                                                    }
                                                 </strong>
 
                                                 <span>
-                                                    {url.originalUrl}
+                                                    {
+                                                        url.originalUrl
+                                                    }
                                                 </span>
 
                                             </button>
@@ -673,8 +968,9 @@ function Analytics() {
 
                                 )}
 
+
                                 {!hasMoreUrls &&
-                                    filteredUrls.length > 0 && (
+                                    urls.length > 0 && (
 
                                         <div className="analytics-url-end">
                                             End of your links
@@ -690,8 +986,6 @@ function Analytics() {
 
                 </div>
 
-
-                {/* Period */}
 
                 <div className="analytics-period">
 
@@ -709,6 +1003,7 @@ function Analytics() {
                         7 days
                     </button>
 
+
                     <button
                         type="button"
                         className={
@@ -722,6 +1017,7 @@ function Analytics() {
                     >
                         30 days
                     </button>
+
 
                     <button
                         type="button"
@@ -761,7 +1057,6 @@ function Analytics() {
 
                 <>
 
-
                     {/* =========================
                         Overview
                        ========================= */}
@@ -775,15 +1070,20 @@ function Analytics() {
                             </span>
 
                             <strong>
-                                {analytics.totalClicks || 0}
+                                {
+                                    analytics.totalClicks ||
+                                    0
+                                }
                             </strong>
 
                             <small>
+
                                 {period === "7d"
                                     ? "Last 7 days"
                                     : period === "30d"
                                         ? "Last 30 days"
                                         : "Last 90 days"}
+
                             </small>
 
                         </div>
@@ -848,7 +1148,9 @@ function Analytics() {
                                 >
 
                                     <LineChart
-                                        data={clicksOverTime}
+                                        data={
+                                            clicksOverTime
+                                        }
                                         margin={{
                                             top: 20,
                                             right: 20,
@@ -861,6 +1163,7 @@ function Analytics() {
                                             vertical={false}
                                             stroke="#e5e1d8"
                                         />
+
 
                                         <XAxis
                                             dataKey="date"
@@ -884,6 +1187,7 @@ function Analytics() {
                                             }
                                         />
 
+
                                         <YAxis
                                             axisLine={false}
                                             tickLine={false}
@@ -893,6 +1197,7 @@ function Analytics() {
                                                 fill: "#71808d"
                                             }}
                                         />
+
 
                                         <Tooltip
                                             contentStyle={{
@@ -906,6 +1211,7 @@ function Analytics() {
                                                     "0 8px 24px rgba(20,37,54,0.08)"
                                             }}
                                         />
+
 
                                         <Line
                                             type="monotone"
@@ -962,12 +1268,14 @@ function Analytics() {
                                 }
                             />
 
+
                             <TrafficList
                                 title="Browsers"
                                 items={
                                     clicksByBrowser
                                 }
                             />
+
 
                             <TrafficList
                                 title="Countries"
@@ -1009,18 +1317,27 @@ function Analytics() {
 
                             <input
                                 type="date"
-                                value={selectedDate}
-                                onChange={event => {
+                                value={
+                                    selectedDate
+                                }
+                                onChange={
+                                    event => {
 
-                                    setSelectedDate(
-                                        event.target.value
-                                    );
+                                        setSelectedDate(
+                                            event.target.value
+                                        );
 
-                                    setDateAnalytics(null);
-                                    setDateError("");
+                                        setDateAnalytics(
+                                            null
+                                        );
 
-                                }}
+                                        setDateError(
+                                            ""
+                                        );
+                                    }
+                                }
                             />
+
 
                             <button
                                 type="button"
@@ -1054,6 +1371,7 @@ function Analytics() {
                             <div className="analytics-date-result">
 
                                 <div>
+
                                     <span>
                                         Clicks
                                     </span>
@@ -1065,9 +1383,12 @@ function Analytics() {
                                             0
                                         }
                                     </strong>
+
                                 </div>
 
+
                                 <div>
+
                                     <span>
                                         Devices
                                     </span>
@@ -1080,9 +1401,12 @@ function Analytics() {
                                             0
                                         }
                                     </strong>
+
                                 </div>
 
+
                                 <div>
+
                                     <span>
                                         Countries
                                     </span>
@@ -1095,6 +1419,7 @@ function Analytics() {
                                             0
                                         }
                                     </strong>
+
                                 </div>
 
                             </div>
@@ -1130,6 +1455,7 @@ function TrafficList({
             <h3>
                 {title}
             </h3>
+
 
             {items.length === 0 ? (
 
