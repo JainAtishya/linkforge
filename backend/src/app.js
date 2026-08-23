@@ -29,13 +29,45 @@ const app = express();
  */
 app.set("trust proxy", 1);
 
+/**
+ * =========================
+ * CORS Configuration
+ * =========================
+ *
+ * Allow both local development
+ * and the deployed frontend.
+ */
+const allowedOrigins = [
+    "http://localhost:5173",
+    process.env.FRONTEND_URL
+].filter(Boolean);
+
+app.use(
+    cors({
+        origin: (origin, callback) => {
+            // Allow requests without an Origin header
+            // such as health checks or server-to-server requests.
+            if (!origin) {
+                return callback(null, true);
+            }
+
+            if (allowedOrigins.includes(origin)) {
+                return callback(null, true);
+            }
+
+            return callback(
+                new Error("Not allowed by CORS")
+            );
+        },
+        credentials: true
+    })
+);
 
 /**
  * =========================
  * Middlewares
  * =========================
  */
-
 app.use(logger);
 
 app.use(
@@ -47,17 +79,7 @@ app.use(
 
 app.use(express.json());
 
-app.use(
-    cors({
-        origin:
-            process.env.FRONTEND_URL ||
-            "http://localhost:5173",
-        credentials: true
-    })
-);
-
 app.use(cookieParser());
-
 
 /**
  * =========================
@@ -73,7 +95,6 @@ app.use(
     "/health",
     healthRoutes
 );
-
 
 /**
  * =========================
@@ -91,7 +112,6 @@ app.use(
     redirectRoutes
 );
 
-
 /**
  * =========================
  * Authentication
@@ -106,7 +126,6 @@ app.use(
     authRoutes
 );
 
-
 /**
  * =========================
  * URL APIs
@@ -120,30 +139,25 @@ app.use(
     urlRoutes
 );
 
-
 /**
  * =========================
  * Root
  * =========================
  */
-
 app.get(
     "/",
     (req, res) => {
         res.json({
-            message:
-                "LinkForge API running"
+            message: "LinkForge API running"
         });
     }
 );
-
 
 /**
  * =========================
  * Error Testing
  * =========================
  */
-
 app.get(
     "/test-error",
     (req, res) => {
@@ -153,27 +167,22 @@ app.get(
     }
 );
 
-
 /**
  * =========================
  * 404 Handler
  * =========================
  */
-
 app.use(
     notFoundHandler
 );
-
 
 /**
  * =========================
  * Global Error Handler
  * =========================
  */
-
 app.use(
     errorHandler
 );
-
 
 module.exports = app;
