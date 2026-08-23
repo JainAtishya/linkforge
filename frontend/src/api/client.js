@@ -8,7 +8,7 @@ const apiClient = axios.create({
 
 /*
  * Prevent multiple API requests from
- * creating multiple refresh requests
+ * creating multiple refresh requests.
  */
 
 let refreshPromise = null;
@@ -17,16 +17,13 @@ let refreshPromise = null;
 apiClient.interceptors.response.use(
 
     (response) => {
-
         return response;
-
     },
 
 
     async (error) => {
 
-        const originalRequest =
-            error.config;
+        const originalRequest = error.config;
 
 
         /*
@@ -41,9 +38,7 @@ apiClient.interceptors.response.use(
                 "/auth/refresh"
             )
         ) {
-
             return Promise.reject(error);
-
         }
 
 
@@ -55,9 +50,7 @@ apiClient.interceptors.response.use(
             error.response?.status !== 401 ||
             originalRequest?._retry
         ) {
-
             return Promise.reject(error);
-
         }
 
 
@@ -74,16 +67,8 @@ apiClient.interceptors.response.use(
             if (!refreshPromise) {
 
                 refreshPromise =
-                    axios.post(
-
-                        "/api/v1/auth/refresh",
-
-                        {},
-
-                        {
-                            withCredentials: true
-                        }
-
+                    apiClient.post(
+                        "/auth/refresh"
                     );
 
             }
@@ -111,23 +96,8 @@ apiClient.interceptors.response.use(
             /*
              * Refresh failed.
              *
-             * This means the refresh token/session
-             * is no longer valid.
-             *
-             * Example:
-             *
-             * Logout all devices
-             *       ↓
-             * Session becomes REVOKED
-             *       ↓
-             * Access token eventually expires
-             *       ↓
-             * Refresh attempted
-             *       ↓
-             * 401 Invalid refresh session
-             *
-             * At this point the user is no longer
-             * authenticated, so send them to login.
+             * The refresh token/session is no
+             * longer valid.
              */
 
             console.error(
