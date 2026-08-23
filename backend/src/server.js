@@ -1,7 +1,5 @@
 const app = require("./app");
-
 const connectDB = require("./config/db");
-
 const { PORT } = require("./config/env");
 
 const {
@@ -13,13 +11,9 @@ const {
 } = require("./config/redis");
 
 const startServer = async () => {
-
     try {
-
-        // MongoDB is required
         await connectDB();
 
-        // Redis is optional
         connectRedis()
             .catch(error => {
                 console.error(
@@ -28,7 +22,6 @@ const startServer = async () => {
                 );
             });
 
-        // Kafka is optional
         connectProducer()
             .catch(error => {
                 console.error(
@@ -37,15 +30,17 @@ const startServer = async () => {
                 );
             });
 
-        // Start API immediately
-        app.listen(PORT, () => {
-            console.log(
-                `Server running on port ${PORT}`
-            );
-        });
+        app.listen(
+            PORT,
+            "0.0.0.0",
+            () => {
+                console.log(
+                    `Server running on port ${PORT}`
+                );
+            }
+        );
 
     } catch (error) {
-
         console.error(
             "Failed to start server:",
             error
