@@ -409,6 +409,11 @@ const getMyUrls =
                     ),
                     100
                 );
+                
+            const search =
+                typeof req.query.search === "string"
+                    ? req.query.search.trim()
+                    : "";
 
 
             const result =

@@ -502,11 +502,67 @@ const verifyUrlPassword = async (
 const getUserUrls = async (
     userId,
     page,
-    limit
+    limit,
+    search = ""
 ) => {
 
     const skip =
         (page - 1) * limit;
+
+
+    /*
+     * Base filter.
+     *
+     * We always restrict the search
+     * to the authenticated user's URLs.
+     */
+    const filter = {
+        userId
+    };
+
+
+    /*
+     * Search by:
+     * - shortCode
+     * - originalUrl
+     *
+     * Escape the search string so that
+     * user input cannot modify the
+     * regular expression.
+     */
+    const normalizedSearch =
+        search
+            .trim()
+            .slice(0, 100);
+
+
+    if (normalizedSearch) {
+
+        const escapedSearch =
+            normalizedSearch.replace(
+                /[.*+?^${}()|[\]\\]/g,
+                "\\$&"
+            );
+
+
+        filter.$or = [
+
+            {
+                shortCode: {
+                    $regex: escapedSearch,
+                    $options: "i"
+                }
+            },
+
+            {
+                originalUrl: {
+                    $regex: escapedSearch,
+                    $options: "i"
+                }
+            }
+
+        ];
+    }
 
 
     const [
@@ -514,9 +570,7 @@ const getUserUrls = async (
         total
     ] = await Promise.all([
 
-        ShortUrl.find({
-            userId
-        })
+        ShortUrl.find(filter)
             .sort({
                 createdAt: -1
             })
@@ -524,9 +578,7 @@ const getUserUrls = async (
             .limit(limit)
             .lean(),
 
-        ShortUrl.countDocuments({
-            userId
-        })
+        ShortUrl.countDocuments(filter)
 
     ]);
 
