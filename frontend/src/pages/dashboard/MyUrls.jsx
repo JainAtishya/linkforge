@@ -112,6 +112,12 @@ function MyUrls() {
     const [editExpiresAt, setEditExpiresAt] =
         useState("");
 
+    const [editPasswordProtected, setEditPasswordProtected] =
+        useState(false);
+
+    const [editPassword, setEditPassword] =
+        useState("");
+
     const [updating, setUpdating] =
         useState(false);
 
@@ -348,6 +354,9 @@ function MyUrls() {
                 : ""
         );
 
+        setEditPasswordProtected(url.isPasswordProtected || false);
+        setEditPassword("");
+
         setEditError("");
     }
 
@@ -364,6 +373,8 @@ function MyUrls() {
 
         setEditOriginalUrl("");
         setEditExpiresAt("");
+        setEditPasswordProtected(false);
+        setEditPassword("");
 
         setEditError("");
     }
@@ -390,17 +401,23 @@ function MyUrls() {
 
         try {
 
+            const payload = {
+                originalUrl: editOriginalUrl,
+                expiresAt: editExpiresAt || null
+            };
+
+            // Only send password if we are modifying it.
+            // If editPasswordProtected is true, we must provide a password (or if it's already protected and we aren't changing it, the backend doesn't need it unless we're updating it. Wait, the backend replaces the password if provided. If editPassword is empty but editPasswordProtected is true, we don't send it, implying keep existing. If editPasswordProtected is false, we send empty password to remove it).
+            if (editPasswordProtected && editPassword) {
+                payload.password = editPassword;
+            } else if (!editPasswordProtected) {
+                payload.password = ""; // Empty string removes password in backend
+            }
+
             const response =
                 await updateUrl(
                     editingUrl.id,
-                    {
-                        originalUrl:
-                            editOriginalUrl,
-
-                        expiresAt:
-                            editExpiresAt ||
-                            null
-                    }
+                    payload
                 );
 
 
@@ -1056,156 +1073,6 @@ function MyUrls() {
 
 
                                                 {/* =========================
-                                                    Edit Row
-                                                   ========================= */}
-
-                                                {editingUrl?.id ===
-                                                    url.id && (
-
-                                                    <tr className="edit-url-row">
-
-                                                        <td colSpan="5">
-
-                                                            <form
-                                                                className="edit-url-form"
-                                                                onSubmit={
-                                                                    handleSaveEdit
-                                                                }
-                                                            >
-
-                                                                <div className="edit-url-header">
-
-                                                                    <div>
-
-                                                                        <h3>
-                                                                            Edit link
-                                                                        </h3>
-
-                                                                        <p>
-                                                                            {url.shortUrl}
-                                                                        </p>
-
-                                                                    </div>
-
-
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={
-                                                                            handleCancelEdit
-                                                                        }
-                                                                    >
-                                                                        Cancel
-                                                                    </button>
-
-                                                                </div>
-
-
-                                                                {editError && (
-
-                                                                    <div className="dashboard-error-box">
-                                                                        {editError}
-                                                                    </div>
-
-                                                                )}
-
-
-                                                                <div className="edit-url-fields">
-
-                                                                    <div className="form-group">
-
-                                                                        <label
-                                                                            htmlFor={`edit-url-${url.id}`}
-                                                                        >
-                                                                            Original URL
-                                                                        </label>
-
-                                                                        <input
-                                                                            id={`edit-url-${url.id}`}
-                                                                            type="url"
-                                                                            value={
-                                                                                editOriginalUrl
-                                                                            }
-                                                                            onChange={
-                                                                                event =>
-                                                                                    setEditOriginalUrl(
-                                                                                        event.target.value
-                                                                                    )
-                                                                            }
-                                                                            required
-                                                                        />
-
-                                                                    </div>
-
-
-                                                                    <div className="form-group">
-
-                                                                        <label
-                                                                            htmlFor={`edit-expiry-${url.id}`}
-                                                                        >
-
-                                                                            Expiration
-
-                                                                            <span>
-                                                                                {" "}Optional
-                                                                            </span>
-
-                                                                        </label>
-
-                                                                        <input
-                                                                            id={`edit-expiry-${url.id}`}
-                                                                            type="datetime-local"
-                                                                            value={
-                                                                                editExpiresAt
-                                                                            }
-                                                                            onChange={
-                                                                                event =>
-                                                                                    setEditExpiresAt(
-                                                                                        event.target.value
-                                                                                    )
-                                                                            }
-                                                                        />
-
-                                                                    </div>
-
-                                                                </div>
-
-
-                                                                <div className="edit-url-actions">
-
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={
-                                                                            handleCancelEdit
-                                                                        }
-                                                                    >
-                                                                        Cancel
-                                                                    </button>
-
-
-                                                                    <button
-                                                                        type="submit"
-                                                                        className="dashboard-primary-button"
-                                                                        disabled={
-                                                                            updating
-                                                                        }
-                                                                    >
-                                                                        {updating
-                                                                            ? "Saving..."
-                                                                            : "Save changes"}
-                                                                    </button>
-
-                                                                </div>
-
-                                                            </form>
-
-                                                        </td>
-
-                                                    </tr>
-
-                                                )}
-
-
-                                                {/* =========================
                                                     URL Row
                                                    ========================= */}
 
@@ -1463,6 +1330,106 @@ function MyUrls() {
                 )}
 
             </section>
+
+            {/* =========================
+                Edit URL Modal
+               ========================= */}
+            {editingUrl && (
+                <div className="dashboard-modal-overlay">
+                    <div className="dashboard-modal-content">
+                        <form
+                            className="create-url-form"
+                            onSubmit={handleSaveEdit}
+                        >
+                            <div className="create-url-header">
+                                <h2>Edit link</h2>
+                                <p>{editingUrl.shortUrl}</p>
+                            </div>
+
+                            {editError && (
+                                <div className="dashboard-error-box">
+                                    {editError}
+                                </div>
+                            )}
+
+                            <div className="form-group">
+                                <label htmlFor={`edit-url-${editingUrl.id}`}>
+                                    Original URL
+                                </label>
+                                <input
+                                    id={`edit-url-${editingUrl.id}`}
+                                    type="url"
+                                    value={editOriginalUrl}
+                                    onChange={event => setEditOriginalUrl(event.target.value)}
+                                    required
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label htmlFor={`edit-expiry-${editingUrl.id}`}>
+                                    Expiration
+                                    <span> Optional</span>
+                                </label>
+                                <input
+                                    id={`edit-expiry-${editingUrl.id}`}
+                                    type="datetime-local"
+                                    value={editExpiresAt}
+                                    onChange={event => setEditExpiresAt(event.target.value)}
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label className="checkbox-label">
+                                    <input
+                                        type="checkbox"
+                                        checked={editPasswordProtected}
+                                        onChange={(e) => {
+                                            setEditPasswordProtected(e.target.checked);
+                                            if (!e.target.checked) setEditPassword("");
+                                        }}
+                                    />
+                                    Require password to access
+                                </label>
+                            </div>
+
+                            {editPasswordProtected && (
+                                <div className="form-group">
+                                    <label htmlFor="editPassword">
+                                        Password
+                                    </label>
+                                    <input
+                                        id="editPassword"
+                                        type="text"
+                                        value={editPassword}
+                                        onChange={event => setEditPassword(event.target.value)}
+                                        placeholder="Leave blank to keep existing"
+                                    />
+                                    <p className="form-help">
+                                        If it's already protected, you can leave this blank to keep the current password. 
+                                        Type a new password to change it.
+                                    </p>
+                                </div>
+                            )}
+
+                            <div className="edit-url-actions">
+                                <button
+                                    type="button"
+                                    onClick={handleCancelEdit}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="dashboard-primary-button"
+                                    disabled={updating}
+                                >
+                                    {updating ? "Saving..." : "Save changes"}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
 
         </div>
     );

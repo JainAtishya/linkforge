@@ -606,14 +606,16 @@ const updateMyUrl =
             const {
                 originalUrl,
                 expiresAt,
-                isActive
+                isActive,
+                password
             } = req.body;
 
 
             if (
                 originalUrl === undefined &&
                 expiresAt === undefined &&
-                isActive === undefined
+                isActive === undefined &&
+                password === undefined
             ) {
 
                 throw new ApiError(
@@ -630,7 +632,8 @@ const updateMyUrl =
                     {
                         originalUrl,
                         expiresAt,
-                        isActive
+                        isActive,
+                        password
                     }
                 );
 

@@ -4511,7 +4511,7 @@ body {
         min-width: 0;
         max-width: 100%;
         overflow: visible;
-
+        flex-wrap: wrap;
         margin-bottom: 4px;
     }
 
@@ -4586,11 +4586,11 @@ body {
     /* Spacing between card sections */
 
     .url-table tbody tr:not(.edit-url-row) td + td {
-        margin-top: 14px;
+        margin-top: 10px;
     }
 
     .url-table tbody tr:not(.edit-url-row) td:nth-child(5) {
-        margin-top: 18px;
+        margin-top: 14px;
     }
 
 
@@ -4652,11 +4652,11 @@ body {
 @media (max-width: 480px) {
 
     .url-table tbody tr {
-        padding: 18px 16px;
+        padding: 14px 12px;
     }
 
     .url-actions {
-        grid-template-columns: 1fr;
+        grid-template-columns: 1fr 1fr;
     }
 
     .url-actions button:last-child {
@@ -6540,4 +6540,67 @@ body {
         margin-top: -24px;
         margin-bottom: 32px;
     }
+}
+
+/* =========================
+   Modal
+   ========================= */
+
+.dashboard-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(23, 32, 51, 0.4);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 20px;
+}
+
+.dashboard-modal-content {
+    background: #fffdf8;
+    border: 1px solid #ddd8cd;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 600px;
+    padding: 30px;
+    box-shadow: 0 12px 35px rgba(23, 32, 51, 0.1);
+    position: relative;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.dashboard-modal-content .create-url-header {
+    margin-bottom: 20px;
+}
+
+.dashboard-modal-content .create-url-form {
+    grid-template-columns: 1fr;
+    gap: 16px;
+}
+
+.dashboard-modal-content .edit-url-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.dashboard-modal-content .edit-url-actions button[type="button"] {
+    background: transparent;
+    border: 1px solid #d6d2c9;
+    color: #172033;
+    padding: 0 20px;
+    height: 44px;
+    border-radius: 7px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.dashboard-modal-content .edit-url-actions button[type="button"]:hover {
+    background: #f0ebe1;
 }

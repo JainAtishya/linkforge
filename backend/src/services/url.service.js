@@ -623,7 +623,8 @@ const updateUrl = async (
     {
         originalUrl,
         expiresAt,
-        isActive
+        isActive,
+        password
     }
 ) => {
 
@@ -710,6 +711,24 @@ const updateUrl = async (
 
             shortUrl.expiresAt =
                 expiry;
+        }
+    }
+    /*
+     * Update password protection.
+     */
+    if (password !== undefined) {
+        if (password === null || password === "") {
+            shortUrl.isPasswordProtected = false;
+            shortUrl.passwordHash = null;
+        } else {
+            if (password.length < 4) {
+                throw new ApiError(StatusCodes.BAD_REQUEST, "Password must be at least 4 characters long");
+            }
+            if (password.length > 100) {
+                throw new ApiError(StatusCodes.BAD_REQUEST, "Password cannot exceed 100 characters");
+            }
+            shortUrl.isPasswordProtected = true;
+            shortUrl.passwordHash = await hashPassword(password);
         }
     }
 
