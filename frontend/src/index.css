@@ -1489,15 +1489,16 @@ body {
 }
 
 .short-url-cell .short-url-link {
-    overflow: hidden;
+    overflow: visible;
 
     color: #172033;
 
     font-size: 0.86rem;
     font-weight: 650;
 
-    white-space: nowrap;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
     text-decoration: none;
 
     transition: color 0.15s ease;
@@ -1513,12 +1514,13 @@ body {
 
     max-width: 280px;
 
-    overflow: hidden;
+    overflow: visible;
 
     color: #697386;
 
-    white-space: nowrap;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 
@@ -3074,14 +3076,15 @@ body {
 .overview-link-info span {
     max-width: 100%;
 
-    overflow: hidden;
+    overflow: visible;
 
     color: var(--text-secondary);
 
     font-size: 0.73rem;
 
-    white-space: nowrap;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
 }
 
 .overview-short-url-row {
@@ -3092,15 +3095,16 @@ body {
 }
 
 .short-url-link {
-    overflow: hidden;
+    overflow: visible;
 
     color: var(--text-primary);
 
     font-size: 0.83rem;
     font-weight: 650;
 
-    white-space: nowrap;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
     text-decoration: none;
 
     transition: color 0.15s ease;
