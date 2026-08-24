@@ -148,8 +148,13 @@ const redirectToOriginalUrl =
                     ) || "";
 
 
+                const forwardedFor =
+                    req.headers["x-forwarded-for"];
+
                 const ipAddress =
-                    req.ip;
+                    forwardedFor
+                        ? forwardedFor.split(",")[0].trim()
+                        : req.ip;
 
 
                 const referrer =
@@ -332,8 +337,13 @@ const accessProtectedUrl =
                 ) || "";
 
 
+            const forwardedFor =
+                req.headers["x-forwarded-for"];
+
             const ipAddress =
-                req.ip;
+                forwardedFor
+                    ? forwardedFor.split(",")[0].trim()
+                    : req.ip;
 
 
             const referrer =
