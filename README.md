@@ -589,7 +589,7 @@ If the Node.js process exits abruptly while the Kafka consumer is running, Kafka
 
 ## License
 
-No license file is currently included. One can be added when needed.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
