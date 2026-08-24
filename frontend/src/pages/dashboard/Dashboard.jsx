@@ -252,9 +252,14 @@ function Dashboard() {
 
                                             <div className="overview-link-info">
 
-                                                <strong>
-                                                    {url.shortCode}
-                                                </strong>
+                                                <a
+                                                    href={url.shortUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="short-url-link"
+                                                >
+                                                    {url.shortUrl}
+                                                </a>
 
                                                 <span>
                                                     {url.originalUrl}

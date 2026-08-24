@@ -1217,9 +1217,14 @@ function MyUrls() {
 
                                                         <div className="short-url-cell">
 
-                                                            <strong>
-                                                                {url.shortCode}
-                                                            </strong>
+                                                            <a
+                                                                href={url.shortUrl}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="short-url-link"
+                                                            >
+                                                                {url.shortUrl}
+                                                            </a>
 
 
                                                             {url.isPasswordProtected && (
