@@ -1,10 +1,16 @@
 const { Kafka } = require("kafkajs");
 
-const kafka = new Kafka({
+const {
+    KAFKA_BROKER,
+    KAFKA_USERNAME,
+    KAFKA_PASSWORD
+} = require("./env");
+
+const kafkaOptions = {
     clientId: "linkforge",
 
     brokers: [
-        process.env.KAFKA_BROKER || "localhost:9092"
+        KAFKA_BROKER || "localhost:9092"
     ],
 
     retry: {
@@ -12,7 +18,20 @@ const kafka = new Kafka({
         initialRetryTime: 300,
         maxRetryTime: 3000
     }
-});
+};
+
+if (KAFKA_USERNAME && KAFKA_PASSWORD) {
+    kafkaOptions.ssl = {
+        rejectUnauthorized: false
+    };
+    kafkaOptions.sasl = {
+        mechanism: "plain",
+        username: KAFKA_USERNAME,
+        password: KAFKA_PASSWORD
+    };
+}
+
+const kafka = new Kafka(kafkaOptions);
 
 const producer = kafka.producer();
 

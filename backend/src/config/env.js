@@ -17,7 +17,8 @@ module.exports = {
     REFRESH_TOKEN_EXPIRY:
         process.env.REFRESH_TOKEN_EXPIRY || "30d",
 
-    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
+    GOOGLE_CLIENT_ID:
+        process.env.GOOGLE_CLIENT_ID,
 
     GOOGLE_CLIENT_SECRET:
         process.env.GOOGLE_CLIENT_SECRET,
@@ -25,7 +26,18 @@ module.exports = {
     GOOGLE_REDIRECT_URI:
         process.env.GOOGLE_REDIRECT_URI,
 
-    APP_BASE_URL: process.env.APP_BASE_URL,
+    APP_BASE_URL:
+        process.env.APP_BASE_URL,
 
-    FRONTEND_URL:process.env.FRONTEND_URL,
+    FRONTEND_URL:
+        process.env.FRONTEND_URL,
+
+    KAFKA_BROKER:
+        process.env.KAFKA_BROKER,
+
+    KAFKA_USERNAME:
+        process.env.KAFKA_USERNAME,
+
+    KAFKA_PASSWORD:
+        process.env.KAFKA_PASSWORD
 };
