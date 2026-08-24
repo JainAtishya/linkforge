@@ -6,7 +6,7 @@ A full-stack URL shortener with click analytics, password-protected links, and G
 
 ## Live Demo
 
-> **[your-production-url-here]** — replace this with your Render deployment URL once confirmed.
+> [LinkForge](https://linkforge-ad9d.onrender.com/)
 
 ---
 
@@ -587,12 +587,6 @@ If the Node.js process exits abruptly while the Kafka consumer is running, Kafka
 
 ---
 
-## Screenshots
-
-No screenshots are committed to the repository. Add them to a `/docs` directory and reference them here.
-
----
-
 ## License
 
 No license file is currently included. One can be added when needed.
@@ -602,4 +596,4 @@ No license file is currently included. One can be added when needed.
 ## Author
 
 - GitHub: [JainAtishya](https://github.com/JainAtishya)
-- LinkedIn: *(add your LinkedIn profile URL here)*
+- LinkedIn: [Atishya Jain](https://www.linkedin.com/in/atishya-jain-441243319/)
