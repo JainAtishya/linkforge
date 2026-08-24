@@ -3062,6 +3062,64 @@ body {
     text-overflow: ellipsis;
 }
 
+.overview-short-url-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.short-url-link {
+    overflow: hidden;
+
+    color: var(--text-primary);
+
+    font-size: 0.83rem;
+    font-weight: 650;
+
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    text-decoration: none;
+
+    transition: color 0.15s ease;
+}
+
+.short-url-link:hover {
+    color: var(--accent, #863bff);
+    text-decoration: underline;
+}
+
+.overview-copy-btn {
+    flex-shrink: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 22px;
+    height: 22px;
+    padding: 0;
+
+    background: transparent;
+    border: none;
+    border-radius: 5px;
+
+    color: var(--text-secondary);
+
+    cursor: pointer;
+
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.overview-copy-btn:hover {
+    background: var(--bg-hover, rgba(134, 59, 255, 0.1));
+    color: var(--accent, #863bff);
+}
+
+.overview-copy-btn:active {
+    transform: scale(0.88);
+}
+
 
 /* =========================
    Quick Actions
