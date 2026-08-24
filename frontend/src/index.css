@@ -1480,13 +1480,32 @@ body {
 .short-url-cell {
     display: flex;
     align-items: center;
+    gap: 6px;
+
+    max-width: 240px;
+    min-width: 0;
+
+    overflow: hidden;
 }
 
-.short-url-cell strong {
+.short-url-cell .short-url-link {
+    overflow: hidden;
+
     color: #172033;
 
     font-size: 0.86rem;
     font-weight: 650;
+
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    text-decoration: none;
+
+    transition: color 0.15s ease;
+}
+
+.short-url-cell .short-url-link:hover {
+    color: #863bff;
+    text-decoration: underline;
 }
 
 .destination-url {
@@ -1555,7 +1574,10 @@ body {
 .url-actions {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 6px;
+
+    min-width: 140px;
 }
 
 .url-actions button {
@@ -4480,20 +4502,26 @@ body {
     }
 
 
-    /* Short URL */
+    /* Short URL — override desktop truncation so the full link word-wraps */
 
     .short-url-cell {
         width: 100%;
         min-width: 0;
         max-width: 100%;
+        overflow: visible;
 
-        margin-bottom: 8px;
+        margin-bottom: 4px;
     }
 
-    .short-url-cell strong {
+    .short-url-cell .short-url-link {
         display: block;
 
         max-width: 100%;
+
+        /* Override desktop ellipsis */
+        overflow: visible;
+        white-space: normal;
+        text-overflow: clip;
 
         font-size: 1rem;
         line-height: 1.4;
@@ -4511,13 +4539,56 @@ body {
         width: 100%;
         max-width: 100%;
 
-        margin-bottom: 16px;
+        margin-bottom: 0;
 
         font-size: 0.9rem;
         line-height: 1.45;
 
         overflow-wrap: anywhere;
         word-break: break-word;
+    }
+
+
+    /* ---- Mobile column labels (replace hidden thead) ---- */
+
+    .url-table tbody tr:not(.edit-url-row) td::before {
+        display: block;
+
+        margin-bottom: 4px;
+
+        color: #7b818b;
+
+        font-size: 0.66rem;
+        font-weight: 700;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+    }
+
+    .url-table tbody tr:not(.edit-url-row) td:nth-child(1)::before {
+        content: "Short URL";
+    }
+
+    .url-table tbody tr:not(.edit-url-row) td:nth-child(2)::before {
+        content: "Destination";
+    }
+
+    .url-table tbody tr:not(.edit-url-row) td:nth-child(3)::before {
+        content: "Status";
+    }
+
+    .url-table tbody tr:not(.edit-url-row) td:nth-child(4)::before {
+        content: "Expires";
+    }
+
+
+    /* Spacing between card sections */
+
+    .url-table tbody tr:not(.edit-url-row) td + td {
+        margin-top: 14px;
+    }
+
+    .url-table tbody tr:not(.edit-url-row) td:nth-child(5) {
+        margin-top: 18px;
     }
 
 
