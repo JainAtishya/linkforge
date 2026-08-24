@@ -489,8 +489,6 @@ body {
 }
 
 .feature-card {
-    min-height: 220px;
-
     padding: 28px;
 
     background: var(--surface);

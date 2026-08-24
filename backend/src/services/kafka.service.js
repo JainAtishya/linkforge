@@ -143,10 +143,19 @@ const publishUrlClicked = async ({
 };
 
 
+const disconnectProducer = async () => {
+    if (!producerConnected) return;
+    try {
+        await producer.disconnect();
+        producerConnected = false;
+        console.log("Kafka producer disconnected cleanly");
+    } catch (error) {
+        console.error("Error disconnecting Kafka producer:", error.message);
+    }
+};
+
 module.exports = {
-
     connectProducer,
-
+    disconnectProducer,
     publishUrlClicked
-
 };

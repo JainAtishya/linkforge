@@ -311,6 +311,8 @@ function Analytics() {
                 setLoadingUrls(false);
 
                 setLoadingMoreUrls(false);
+                
+                setIsInitialLoad(false);
             }
         }
     }
@@ -719,13 +721,15 @@ function Analytics() {
     }
 
 
+    const [isInitialLoad, setIsInitialLoad] = useState(true);
+
     /*
      * =========================
      * Loading
      * =========================
      */
 
-    if (loadingUrls) {
+    if (isInitialLoad) {
 
         return (
             <div className="dashboard-state">
@@ -739,9 +743,13 @@ function Analytics() {
      * =========================
      * No URLs
      * =========================
+     * 
+     * Only show the empty page if we have
+     * literally 0 URLs in the account (meaning
+     * no URL was ever selected).
      */
 
-    if (urls.length === 0) {
+    if (!selectedUrlId && urls.length === 0) {
 
         return (
 
